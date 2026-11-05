@@ -28,16 +28,29 @@
   }
 }
 
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  transition: color 150ms, background-color 150ms, border-color 150ms;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 @layer components {
   .card {
     @apply rounded-2xl border border-white/8 bg-white/[0.035] backdrop-blur-sm;
   }
   .card-hover {
     @apply transition-colors duration-150 hover:border-white/15 hover:bg-white/[0.055];
-  }
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium
-           transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
     @apply btn bg-brand-500 text-ink-950 hover:bg-brand-400;
