@@ -71,7 +71,13 @@ export function Sidebar() {
           ))}
         </nav>
 
-        <div className="mt-8 rounded-xl border border-white/8 bg-white/[0.03] p-3.5 lg:mt-auto">
+        <a
+          href="https://appjet.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Visit AppJet.ai"
+          className="group mt-8 block rounded-xl border border-white/8 bg-white/[0.03] p-3.5 transition-colors hover:border-brand-500/40 hover:bg-brand-500/5 lg:mt-auto"
+        >
           <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-brand-400">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand-400" />
             Built by AppJet
@@ -79,7 +85,13 @@ export function Sidebar() {
           <p className="text-xs leading-relaxed text-slate-500">
             100% AI-generated demo. Every line of code in this app was written by AppJet.
           </p>
-        </div>
+          <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-400 group-hover:text-brand-300">
+            appjet.ai
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 17L17 7M9 7h8v8" />
+            </svg>
+          </span>
+        </a>
       </aside>
     </>
   );
