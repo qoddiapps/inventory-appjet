@@ -2,8 +2,8 @@ import { listProducts } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
 
-function csvCell(value: string | number | null): string {
-  const text = value === null ? "" : String(value);
+function csvCell(value: string | number | null | undefined): string {
+  const text = value === null || value === undefined ? "" : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
