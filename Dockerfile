@@ -28,10 +28,13 @@ ENV NODE_ENV=production \
     DATA_DIR=/data
 
 # Apply distro security updates before dropping privileges.
+# Keep an (empty) /var/cache/apk directory: image scanners read that path to
+# enumerate installed apk packages and fail when it is absent.
 RUN apk upgrade --no-cache \
  && apk add --no-cache ca-certificates \
  && rm -rf /var/cache/apk/* \
- && mkdir -p /data && chown node:node /data
+ && mkdir -p /var/cache/apk /data \
+ && chown node:node /data
 
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
