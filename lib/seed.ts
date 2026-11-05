@@ -71,6 +71,8 @@ export function seedIfEmpty(db: Database.Database) {
   const insertMovement = db.prepare(
     "INSERT INTO stock_movements (product_id, type, quantity, delta, reason, reference, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
+  const daysAgo = (days: number) =>
+    new Date(Date.now() - days * 86400000).toISOString().replace("T", " ").slice(0, 19);
 
   db.transaction(() => {
     const categoryIds = new Map<string, number>();
@@ -106,7 +108,7 @@ export function seedIfEmpty(db: Database.Database) {
       // A moving stock history is created by replaying deltas that end at the seeded quantity.
       const received = Math.max(product.qty, Math.round(product.reorder * 1.5));
       const shipped = received - product.qty;
-      const daysAgo = 10 + (index % 6);
+      const receivedDaysAgo = 10 + (index % 6);
 
       insertMovement.run(
         productId,
@@ -115,7 +117,7 @@ export function seedIfEmpty(db: Database.Database) {
         received,
         reasonsIn[index % reasonsIn.length],
         `PO-${1200 + index}`,
-        `datetime('now', '-${daysAgo} days')`.replace(/^datetime\('now', '|'\)$/g, ""),
+        daysAgo(receivedDaysAgo),
       );
 
       if (shipped > 0) {
@@ -126,7 +128,7 @@ export function seedIfEmpty(db: Database.Database) {
           -shipped,
           reasonsOut[index % reasonsOut.length],
           `SO-${4300 + index}`,
-          `datetime('now', '-${Math.max(1, daysAgo - 4)} days')`.replace(/^datetime\('now', '|'\)$/g, ""),
+          daysAgo(Math.max(1, receivedDaysAgo - 4)),
         );
       }
     });
