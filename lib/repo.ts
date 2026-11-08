@@ -534,33 +534,40 @@ export function listMovements(options: {
 export function createMovement(input: MovementInput): StockMovement {
   const issues: string[] = [];
   const productId = Number(input.product_id);
-  if (!Number.isInteger(productId) || productId <= 0) issues.push("A product is required");
+  if (!Number.isSafeInteger(productId) || productId <= 0) issues.push("A product is required");
 
   const type = String(input.type ?? "") as MovementType;
   if (!MOVEMENT_TYPES.includes(type)) issues.push("Type must be in, out or adjust");
 
   const quantity = Number(input.quantity);
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    issues.push("Quantity must be a whole number greater than 0");
+  const minimum = type === "adjust" ? 0 : 1;
+  if (!Number.isSafeInteger(quantity) || quantity < minimum || quantity > MAX_STOCK_QUANTITY) {
+    issues.push(`Quantity must be a whole number between ${minimum} and ${MAX_STOCK_QUANTITY}`);
   }
 
+  const reason = optionalBoundedStr(input.reason, "Reason", 500, issues);
+  const reference = optionalBoundedStr(input.reference, "Reference", 120, issues);
   if (issues.length > 0) throw new ValidationError(issues);
-
-  const product = getProduct(productId);
-  const delta = type === "in" ? quantity : type === "out" ? -quantity : quantity - product.quantity;
-  const nextQuantity = product.quantity + delta;
-
-  if (nextQuantity < 0) {
-    throw new ValidationError([
-      `Only ${product.quantity} unit(s) of ${product.name} in stock — cannot remove ${quantity}`,
-    ]);
-  }
 
   const db = getDb();
   const createdAt = nowIso();
   let movementId = 0;
 
   db.transaction(() => {
+    // Read inside the transaction so concurrent writes cannot use a stale balance.
+    const product = getProduct(productId);
+    const delta = type === "in" ? quantity : type === "out" ? -quantity : quantity - product.quantity;
+    const nextQuantity = product.quantity + delta;
+
+    if (nextQuantity < 0) {
+      throw new ValidationError([
+        `Only ${product.quantity} unit(s) of ${product.name} in stock — cannot remove ${quantity}`,
+      ]);
+    }
+    if (nextQuantity > MAX_STOCK_QUANTITY) {
+      throw new ValidationError([`Stock cannot exceed ${MAX_STOCK_QUANTITY} units`]);
+    }
+
     const info = db
       .prepare(
         `INSERT INTO stock_movements (product_id, type, quantity, delta, reason, reference, created_at)
@@ -571,8 +578,8 @@ export function createMovement(input: MovementInput): StockMovement {
         type,
         type === "adjust" ? Math.abs(delta) : quantity,
         delta,
-        optionalStr(input.reason),
-        optionalStr(input.reference),
+        reason,
+        reference,
         createdAt,
       );
     movementId = Number(info.lastInsertRowid);
