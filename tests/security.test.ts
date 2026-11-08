@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
 
+async function main() {
 // Never touch the development or deployed inventory while running these tests.
 const testDataDir = mkdtempSync(path.join(tmpdir(), "stockroom-security-"));
 process.env.DATA_DIR = testDataDir;
