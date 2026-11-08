@@ -607,9 +607,21 @@ export function deleteMovement(id: number): void {
       .get(id) as { id: number; product_id: number; delta: number } | undefined;
     if (!movement) throw new NotFoundError("Movement not found");
 
+    const product = db
+      .prepare("SELECT quantity FROM products WHERE id = ?")
+      .get(movement.product_id) as { quantity: number } | undefined;
+    if (!product) throw new NotFoundError("Product not found");
+
+    const nextQuantity = product.quantity - movement.delta;
+    if (nextQuantity < 0) {
+      throw new ValidationError([
+        "Deleting this movement would leave negative stock; delete later outgoing movements first",
+      ]);
+    }
+
     db.prepare("DELETE FROM stock_movements WHERE id = ?").run(id);
-    db.prepare("UPDATE products SET quantity = quantity - ?, updated_at = ? WHERE id = ?").run(
-      movement.delta,
+    db.prepare("UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?").run(
+      nextQuantity,
       nowIso(),
       movement.product_id,
     );
