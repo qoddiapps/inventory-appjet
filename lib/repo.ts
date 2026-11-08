@@ -429,12 +429,15 @@ function validateSupplier(input: SupplierInput) {
     ? 7
     : wholeNumber(input.lead_time_days, "Lead time", issues, 7, 36_500);
 
+  const contactName = optionalBoundedStr(input.contact_name, "Contact name", 120, issues);
+  const phone = optionalBoundedStr(input.phone, "Phone", 50, issues);
+
   if (issues.length > 0) throw new ValidationError(issues);
   return {
     name,
-    contact_name: optionalBoundedStr(input.contact_name, "Contact name", 120, issues),
+    contact_name: contactName,
     email,
-    phone: optionalBoundedStr(input.phone, "Phone", 50, issues),
+    phone,
     lead_time_days: lead,
   };
 }
