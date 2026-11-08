@@ -287,6 +287,7 @@ export function createProduct(input: ProductInput): Product {
     quantity: number;
     reorder_level: number;
   };
+  ensureProductReferences(values);
   ensureSkuAvailable(values.sku);
 
   const db = getDb();
