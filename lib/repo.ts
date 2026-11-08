@@ -497,15 +497,25 @@ export function listMovements(options: {
 } = {}): StockMovement[] {
   const where: string[] = [];
   const params: Record<string, unknown> = {};
-  if (options.productId) {
+  if (options.productId !== undefined) {
+    if (!Number.isSafeInteger(options.productId) || options.productId <= 0) {
+      throw new ValidationError(["Invalid product id"]);
+    }
     where.push("m.product_id = @productId");
     params.productId = options.productId;
   }
-  if (options.type && MOVEMENT_TYPES.includes(options.type as MovementType)) {
+  if (options.type !== undefined) {
+    if (!MOVEMENT_TYPES.includes(options.type as MovementType)) {
+      throw new ValidationError(["Type must be in, out or adjust"]);
+    }
     where.push("m.type = @type");
     params.type = options.type;
   }
-  const limit = Math.min(Math.max(options.limit ?? 200, 1), 500);
+  const requestedLimit = options.limit ?? 200;
+  if (!Number.isSafeInteger(requestedLimit) || requestedLimit <= 0) {
+    throw new ValidationError(["Limit must be a positive whole number"]);
+  }
+  const limit = Math.min(requestedLimit, 500);
 
   return getDb()
     .prepare(
