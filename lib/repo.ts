@@ -417,24 +417,24 @@ export interface SupplierInput {
 
 function validateSupplier(input: SupplierInput) {
   const issues: string[] = [];
-  const name = str(input.name);
+  const name = boundedStr(input.name, "Supplier name", 160, issues);
   if (name.length < 2) issues.push("Supplier name must be at least 2 characters");
 
-  const email = optionalStr(input.email);
+  const email = optionalBoundedStr(input.email, "Email", 254, issues);
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     issues.push("Email address looks invalid");
   }
 
   const lead = input.lead_time_days === undefined || input.lead_time_days === ""
     ? 7
-    : wholeNumber(input.lead_time_days, "Lead time", issues, 7);
+    : wholeNumber(input.lead_time_days, "Lead time", issues, 7, 36_500);
 
   if (issues.length > 0) throw new ValidationError(issues);
   return {
     name,
-    contact_name: optionalStr(input.contact_name),
+    contact_name: optionalBoundedStr(input.contact_name, "Contact name", 120, issues),
     email,
-    phone: optionalStr(input.phone),
+    phone: optionalBoundedStr(input.phone, "Phone", 50, issues),
     lead_time_days: lead,
   };
 }
