@@ -251,6 +251,22 @@ function validateProduct(input: ProductInput, partial: boolean) {
   return values;
 }
 
+function ensureProductReferences(values: Record<string, unknown>) {
+  const db = getDb();
+  if (
+    typeof values.category_id === "number" &&
+    !db.prepare("SELECT id FROM categories WHERE id = ?").get(values.category_id)
+  ) {
+    throw new ValidationError(["Category does not exist"]);
+  }
+  if (
+    typeof values.supplier_id === "number" &&
+    !db.prepare("SELECT id FROM suppliers WHERE id = ?").get(values.supplier_id)
+  ) {
+    throw new ValidationError(["Supplier does not exist"]);
+  }
+}
+
 function ensureSkuAvailable(sku: string, excludeId?: number) {
   const row = getDb()
     .prepare("SELECT id FROM products WHERE sku = ? AND id IS NOT ?")
