@@ -1,4 +1,4 @@
-import { fail, ok, readJson } from "@/lib/api";
+import { fail, ok, parseLimit, parseMovementType, parseOptionalId, readJson } from "@/lib/api";
 import { createMovement, listMovements } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +9,9 @@ export async function GET(request: Request) {
     const productId = url.searchParams.get("product_id");
     return ok(
       listMovements({
-        productId: productId ? Number(productId) : undefined,
-        type: url.searchParams.get("type") ?? undefined,
-        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+        productId: parseOptionalId(productId),
+        type: parseMovementType(url.searchParams.get("type")),
+        limit: parseLimit(url.searchParams.get("limit")),
       }),
     );
   } catch (error) {

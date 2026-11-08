@@ -76,6 +76,22 @@ function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function boundedStr(value: unknown, field: string, max: number, issues: string[]): string {
+  const text = str(value);
+  if (text.length > max) issues.push(`${field} must be ${max} characters or fewer`);
+  return text;
+}
+
+function optionalBoundedStr(
+  value: unknown,
+  field: string,
+  max: number,
+  issues: string[],
+): string | null {
+  const text = boundedStr(value, field, max, issues);
+  return text.length > 0 ? text : null;
+}
+
 function optionalStr(value: unknown): string | null {
   const text = str(value);
   return text.length > 0 ? text : null;
@@ -93,10 +109,18 @@ function money(value: unknown, field: string, issues: string[]): number {
   return Math.round(num * 100) / 100;
 }
 
-function wholeNumber(value: unknown, field: string, issues: string[], fallback = 0): number {
+const MAX_STOCK_QUANTITY = 1_000_000_000;
+
+function wholeNumber(
+  value: unknown,
+  field: string,
+  issues: string[],
+  fallback = 0,
+  max = MAX_STOCK_QUANTITY,
+): number {
   const num = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(num) || num < 0) {
-    issues.push(`${field} must be a whole number of 0 or more`);
+  if (!Number.isSafeInteger(num) || num < 0 || num > max) {
+    issues.push(`${field} must be a whole number between 0 and ${max}`);
     return fallback;
   }
   return num;
@@ -180,13 +204,21 @@ function validateProduct(input: ProductInput, partial: boolean) {
   const issues: string[] = [];
   const values: Record<string, unknown> = {};
 
+  // Supply nullable defaults so minimal valid API payloads cannot cause a 500.
+  if (!partial) {
+    values.description = null;
+    values.location = null;
+    values.category_id = null;
+    values.supplier_id = null;
+  }
+
   if (!partial || input.sku !== undefined) {
-    const sku = str(input.sku).toUpperCase();
+    const sku = boundedStr(input.sku, "SKU", 64, issues).toUpperCase();
     if (sku.length < 2) issues.push("SKU must be at least 2 characters");
     values.sku = sku;
   }
   if (!partial || input.name !== undefined) {
-    const name = str(input.name);
+    const name = boundedStr(input.name, "Name", 160, issues);
     if (name.length < 2) issues.push("Name must be at least 2 characters");
     values.name = name;
   }
@@ -202,8 +234,12 @@ function validateProduct(input: ProductInput, partial: boolean) {
   if (!partial || input.quantity !== undefined) {
     values.quantity = wholeNumber(input.quantity, "Quantity", issues);
   }
-  if (input.description !== undefined) values.description = optionalStr(input.description);
-  if (input.location !== undefined) values.location = optionalStr(input.location);
+  if (input.description !== undefined) {
+    values.description = optionalBoundedStr(input.description, "Description", 2_000, issues);
+  }
+  if (input.location !== undefined) {
+    values.location = optionalBoundedStr(input.location, "Location", 160, issues);
+  }
   if (input.category_id !== undefined) {
     values.category_id = idOrNull(input.category_id, "Category", issues);
   }
@@ -213,6 +249,22 @@ function validateProduct(input: ProductInput, partial: boolean) {
 
   if (issues.length > 0) throw new ValidationError(issues);
   return values;
+}
+
+function ensureProductReferences(values: Record<string, unknown>) {
+  const db = getDb();
+  if (
+    typeof values.category_id === "number" &&
+    !db.prepare("SELECT id FROM categories WHERE id = ?").get(values.category_id)
+  ) {
+    throw new ValidationError(["Category does not exist"]);
+  }
+  if (
+    typeof values.supplier_id === "number" &&
+    !db.prepare("SELECT id FROM suppliers WHERE id = ?").get(values.supplier_id)
+  ) {
+    throw new ValidationError(["Supplier does not exist"]);
+  }
 }
 
 function ensureSkuAvailable(sku: string, excludeId?: number) {
@@ -235,6 +287,7 @@ export function createProduct(input: ProductInput): Product {
     quantity: number;
     reorder_level: number;
   };
+  ensureProductReferences(values);
   ensureSkuAvailable(values.sku);
 
   const db = getDb();
@@ -261,6 +314,13 @@ export function createProduct(input: ProductInput): Product {
 export function updateProduct(id: number, input: ProductInput): Product {
   const existing = getProduct(id);
   const values = validateProduct(input, true) as Record<string, unknown>;
+
+  // Reject before any UPDATE: stock only changes through the movement ledger.
+  if (values.quantity !== undefined && values.quantity !== existing.quantity) {
+    throw new ValidationError(["Use a stock movement to change quantity"]);
+  }
+
+  ensureProductReferences(values);
   if (typeof values.sku === "string") ensureSkuAvailable(values.sku, id);
 
   const fields = Object.keys(values);
@@ -271,10 +331,6 @@ export function updateProduct(id: number, input: ProductInput): Product {
       .run({ ...values, updated: nowIso(), id });
   }
 
-  // Quantity edits are rejected here on purpose: stock only changes through movements.
-  if (values.quantity !== undefined && values.quantity !== existing.quantity) {
-    throw new ValidationError(["Use a stock movement to change quantity"]);
-  }
   return getProduct(id);
 }
 
@@ -295,32 +351,39 @@ export function listCategories(): Category[] {
     .all() as Category[];
 }
 
+function validateCategory(input: { name?: unknown; description?: unknown }) {
+  const issues: string[] = [];
+  const name = boundedStr(input.name, "Category name", 128, issues);
+  if (name.length < 2) issues.push("Category name must be at least 2 characters");
+  const description = optionalBoundedStr(input.description, "Description", 1_000, issues);
+  if (issues.length > 0) throw new ValidationError(issues);
+  return { name, description };
+}
+
 export function createCategory(input: { name?: unknown; description?: unknown }): Category {
-  const name = str(input.name);
-  if (name.length < 2) throw new ValidationError(["Category name must be at least 2 characters"]);
+  const values = validateCategory(input);
   try {
     const info = getDb()
       .prepare("INSERT INTO categories (name, description, created_at) VALUES (?, ?, ?)")
-      .run(name, optionalStr(input.description), nowIso());
+      .run(values.name, values.description, nowIso());
     return getDb()
       .prepare("SELECT id, name, description, created_at FROM categories WHERE id = ?")
       .get(Number(info.lastInsertRowid)) as Category;
   } catch {
-    throw new ValidationError([`Category "${name}" already exists`]);
+    throw new ValidationError([`Category "${values.name}" already exists`]);
   }
 }
 
 export function updateCategory(id: number, input: { name?: unknown; description?: unknown }): Category {
-  const name = str(input.name);
-  if (name.length < 2) throw new ValidationError(["Category name must be at least 2 characters"]);
+  const values = validateCategory(input);
   try {
     const info = getDb()
       .prepare("UPDATE categories SET name = ?, description = ? WHERE id = ?")
-      .run(name, optionalStr(input.description), id);
+      .run(values.name, values.description, id);
     if (info.changes === 0) throw new NotFoundError("Category not found");
   } catch (error) {
     if (error instanceof NotFoundError) throw error;
-    throw new ValidationError([`Category "${name}" already exists`]);
+    throw new ValidationError([`Category "${values.name}" already exists`]);
   }
   return getDb()
     .prepare("SELECT id, name, description, created_at FROM categories WHERE id = ?")
@@ -354,24 +417,27 @@ export interface SupplierInput {
 
 function validateSupplier(input: SupplierInput) {
   const issues: string[] = [];
-  const name = str(input.name);
+  const name = boundedStr(input.name, "Supplier name", 160, issues);
   if (name.length < 2) issues.push("Supplier name must be at least 2 characters");
 
-  const email = optionalStr(input.email);
+  const email = optionalBoundedStr(input.email, "Email", 254, issues);
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     issues.push("Email address looks invalid");
   }
 
   const lead = input.lead_time_days === undefined || input.lead_time_days === ""
     ? 7
-    : wholeNumber(input.lead_time_days, "Lead time", issues, 7);
+    : wholeNumber(input.lead_time_days, "Lead time", issues, 7, 36_500);
+
+  const contactName = optionalBoundedStr(input.contact_name, "Contact name", 120, issues);
+  const phone = optionalBoundedStr(input.phone, "Phone", 50, issues);
 
   if (issues.length > 0) throw new ValidationError(issues);
   return {
     name,
-    contact_name: optionalStr(input.contact_name),
+    contact_name: contactName,
     email,
-    phone: optionalStr(input.phone),
+    phone,
     lead_time_days: lead,
   };
 }
@@ -434,15 +500,25 @@ export function listMovements(options: {
 } = {}): StockMovement[] {
   const where: string[] = [];
   const params: Record<string, unknown> = {};
-  if (options.productId) {
+  if (options.productId !== undefined) {
+    if (!Number.isSafeInteger(options.productId) || options.productId <= 0) {
+      throw new ValidationError(["Invalid product id"]);
+    }
     where.push("m.product_id = @productId");
     params.productId = options.productId;
   }
-  if (options.type && MOVEMENT_TYPES.includes(options.type as MovementType)) {
+  if (options.type !== undefined) {
+    if (!MOVEMENT_TYPES.includes(options.type as MovementType)) {
+      throw new ValidationError(["Type must be in, out or adjust"]);
+    }
     where.push("m.type = @type");
     params.type = options.type;
   }
-  const limit = Math.min(Math.max(options.limit ?? 200, 1), 500);
+  const requestedLimit = options.limit ?? 200;
+  if (!Number.isSafeInteger(requestedLimit) || requestedLimit <= 0) {
+    throw new ValidationError(["Limit must be a positive whole number"]);
+  }
+  const limit = Math.min(requestedLimit, 500);
 
   return getDb()
     .prepare(
@@ -458,33 +534,40 @@ export function listMovements(options: {
 export function createMovement(input: MovementInput): StockMovement {
   const issues: string[] = [];
   const productId = Number(input.product_id);
-  if (!Number.isInteger(productId) || productId <= 0) issues.push("A product is required");
+  if (!Number.isSafeInteger(productId) || productId <= 0) issues.push("A product is required");
 
   const type = String(input.type ?? "") as MovementType;
   if (!MOVEMENT_TYPES.includes(type)) issues.push("Type must be in, out or adjust");
 
   const quantity = Number(input.quantity);
-  if (!Number.isInteger(quantity) || quantity <= 0) {
-    issues.push("Quantity must be a whole number greater than 0");
+  const minimum = type === "adjust" ? 0 : 1;
+  if (!Number.isSafeInteger(quantity) || quantity < minimum || quantity > MAX_STOCK_QUANTITY) {
+    issues.push(`Quantity must be a whole number between ${minimum} and ${MAX_STOCK_QUANTITY}`);
   }
 
+  const reason = optionalBoundedStr(input.reason, "Reason", 500, issues);
+  const reference = optionalBoundedStr(input.reference, "Reference", 120, issues);
   if (issues.length > 0) throw new ValidationError(issues);
-
-  const product = getProduct(productId);
-  const delta = type === "in" ? quantity : type === "out" ? -quantity : quantity - product.quantity;
-  const nextQuantity = product.quantity + delta;
-
-  if (nextQuantity < 0) {
-    throw new ValidationError([
-      `Only ${product.quantity} unit(s) of ${product.name} in stock — cannot remove ${quantity}`,
-    ]);
-  }
 
   const db = getDb();
   const createdAt = nowIso();
   let movementId = 0;
 
   db.transaction(() => {
+    // Read inside the transaction so concurrent writes cannot use a stale balance.
+    const product = getProduct(productId);
+    const delta = type === "in" ? quantity : type === "out" ? -quantity : quantity - product.quantity;
+    const nextQuantity = product.quantity + delta;
+
+    if (nextQuantity < 0) {
+      throw new ValidationError([
+        `Only ${product.quantity} unit(s) of ${product.name} in stock — cannot remove ${quantity}`,
+      ]);
+    }
+    if (nextQuantity > MAX_STOCK_QUANTITY) {
+      throw new ValidationError([`Stock cannot exceed ${MAX_STOCK_QUANTITY} units`]);
+    }
+
     const info = db
       .prepare(
         `INSERT INTO stock_movements (product_id, type, quantity, delta, reason, reference, created_at)
@@ -495,8 +578,8 @@ export function createMovement(input: MovementInput): StockMovement {
         type,
         type === "adjust" ? Math.abs(delta) : quantity,
         delta,
-        optionalStr(input.reason),
-        optionalStr(input.reference),
+        reason,
+        reference,
         createdAt,
       );
     movementId = Number(info.lastInsertRowid);
@@ -524,9 +607,21 @@ export function deleteMovement(id: number): void {
       .get(id) as { id: number; product_id: number; delta: number } | undefined;
     if (!movement) throw new NotFoundError("Movement not found");
 
+    const product = db
+      .prepare("SELECT quantity FROM products WHERE id = ?")
+      .get(movement.product_id) as { quantity: number } | undefined;
+    if (!product) throw new NotFoundError("Product not found");
+
+    const nextQuantity = product.quantity - movement.delta;
+    if (nextQuantity < 0) {
+      throw new ValidationError([
+        "Deleting this movement would leave negative stock; delete later outgoing movements first",
+      ]);
+    }
+
     db.prepare("DELETE FROM stock_movements WHERE id = ?").run(id);
-    db.prepare("UPDATE products SET quantity = quantity - ?, updated_at = ? WHERE id = ?").run(
-      movement.delta,
+    db.prepare("UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?").run(
+      nextQuantity,
       nowIso(),
       movement.product_id,
     );

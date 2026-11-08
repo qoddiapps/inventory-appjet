@@ -1,4 +1,4 @@
-import { fail, ok, readJson } from "@/lib/api";
+import { fail, ok, parseOptionalId, parseProductSort, readJson } from "@/lib/api";
 import { createProduct, listProducts } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
@@ -8,14 +8,14 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const categoryId = url.searchParams.get("category_id");
     const supplierId = url.searchParams.get("supplier_id");
-    const sort = url.searchParams.get("sort") ?? undefined;
+    const sort = url.searchParams.get("sort");
     return ok(
       listProducts({
         search: url.searchParams.get("search") ?? undefined,
-        categoryId: categoryId ? Number(categoryId) : null,
-        supplierId: supplierId ? Number(supplierId) : null,
+        categoryId: parseOptionalId(categoryId) ?? null,
+        supplierId: parseOptionalId(supplierId) ?? null,
         lowStock: url.searchParams.get("low_stock") === "true",
-        sort: sort as never,
+        sort: parseProductSort(sort),
       }),
     );
   } catch (error) {
