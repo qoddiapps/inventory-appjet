@@ -109,10 +109,18 @@ function money(value: unknown, field: string, issues: string[]): number {
   return Math.round(num * 100) / 100;
 }
 
-function wholeNumber(value: unknown, field: string, issues: string[], fallback = 0): number {
+const MAX_STOCK_QUANTITY = 1_000_000_000;
+
+function wholeNumber(
+  value: unknown,
+  field: string,
+  issues: string[],
+  fallback = 0,
+  max = MAX_STOCK_QUANTITY,
+): number {
   const num = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(num) || num < 0) {
-    issues.push(`${field} must be a whole number of 0 or more`);
+  if (!Number.isSafeInteger(num) || num < 0 || num > max) {
+    issues.push(`${field} must be a whole number between 0 and ${max}`);
     return fallback;
   }
   return num;
