@@ -13,8 +13,9 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(_request: Request, { params }: Params) {
+export async function DELETE(request: Request, { params }: Params) {
   try {
+    assertSameOrigin(request);
     deleteSupplier(parseId((await params).id));
     return ok({ deleted: true });
   } catch (error) {

@@ -76,6 +76,22 @@ function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function boundedStr(value: unknown, field: string, max: number, issues: string[]): string {
+  const text = str(value);
+  if (text.length > max) issues.push(`${field} must be ${max} characters or fewer`);
+  return text;
+}
+
+function optionalBoundedStr(
+  value: unknown,
+  field: string,
+  max: number,
+  issues: string[],
+): string | null {
+  const text = boundedStr(value, field, max, issues);
+  return text.length > 0 ? text : null;
+}
+
 function optionalStr(value: unknown): string | null {
   const text = str(value);
   return text.length > 0 ? text : null;
