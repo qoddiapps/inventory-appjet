@@ -314,6 +314,13 @@ export function createProduct(input: ProductInput): Product {
 export function updateProduct(id: number, input: ProductInput): Product {
   const existing = getProduct(id);
   const values = validateProduct(input, true) as Record<string, unknown>;
+
+  // Reject before any UPDATE: stock only changes through the movement ledger.
+  if (values.quantity !== undefined && values.quantity !== existing.quantity) {
+    throw new ValidationError(["Use a stock movement to change quantity"]);
+  }
+
+  ensureProductReferences(values);
   if (typeof values.sku === "string") ensureSkuAvailable(values.sku, id);
 
   const fields = Object.keys(values);
@@ -324,10 +331,6 @@ export function updateProduct(id: number, input: ProductInput): Product {
       .run({ ...values, updated: nowIso(), id });
   }
 
-  // Quantity edits are rejected here on purpose: stock only changes through movements.
-  if (values.quantity !== undefined && values.quantity !== existing.quantity) {
-    throw new ValidationError(["Use a stock movement to change quantity"]);
-  }
   return getProduct(id);
 }
 
