@@ -351,32 +351,39 @@ export function listCategories(): Category[] {
     .all() as Category[];
 }
 
+function validateCategory(input: { name?: unknown; description?: unknown }) {
+  const issues: string[] = [];
+  const name = boundedStr(input.name, "Category name", 128, issues);
+  if (name.length < 2) issues.push("Category name must be at least 2 characters");
+  const description = optionalBoundedStr(input.description, "Description", 1_000, issues);
+  if (issues.length > 0) throw new ValidationError(issues);
+  return { name, description };
+}
+
 export function createCategory(input: { name?: unknown; description?: unknown }): Category {
-  const name = str(input.name);
-  if (name.length < 2) throw new ValidationError(["Category name must be at least 2 characters"]);
+  const values = validateCategory(input);
   try {
     const info = getDb()
       .prepare("INSERT INTO categories (name, description, created_at) VALUES (?, ?, ?)")
-      .run(name, optionalStr(input.description), nowIso());
+      .run(values.name, values.description, nowIso());
     return getDb()
       .prepare("SELECT id, name, description, created_at FROM categories WHERE id = ?")
       .get(Number(info.lastInsertRowid)) as Category;
   } catch {
-    throw new ValidationError([`Category "${name}" already exists`]);
+    throw new ValidationError([`Category "${values.name}" already exists`]);
   }
 }
 
 export function updateCategory(id: number, input: { name?: unknown; description?: unknown }): Category {
-  const name = str(input.name);
-  if (name.length < 2) throw new ValidationError(["Category name must be at least 2 characters"]);
+  const values = validateCategory(input);
   try {
     const info = getDb()
       .prepare("UPDATE categories SET name = ?, description = ? WHERE id = ?")
-      .run(name, optionalStr(input.description), id);
+      .run(values.name, values.description, id);
     if (info.changes === 0) throw new NotFoundError("Category not found");
   } catch (error) {
     if (error instanceof NotFoundError) throw error;
-    throw new ValidationError([`Category "${name}" already exists`]);
+    throw new ValidationError([`Category "${values.name}" already exists`]);
   }
   return getDb()
     .prepare("SELECT id, name, description, created_at FROM categories WHERE id = ?")
