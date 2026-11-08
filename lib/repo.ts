@@ -204,13 +204,21 @@ function validateProduct(input: ProductInput, partial: boolean) {
   const issues: string[] = [];
   const values: Record<string, unknown> = {};
 
+  // Supply nullable defaults so minimal valid API payloads cannot cause a 500.
+  if (!partial) {
+    values.description = null;
+    values.location = null;
+    values.category_id = null;
+    values.supplier_id = null;
+  }
+
   if (!partial || input.sku !== undefined) {
-    const sku = str(input.sku).toUpperCase();
+    const sku = boundedStr(input.sku, "SKU", 64, issues).toUpperCase();
     if (sku.length < 2) issues.push("SKU must be at least 2 characters");
     values.sku = sku;
   }
   if (!partial || input.name !== undefined) {
-    const name = str(input.name);
+    const name = boundedStr(input.name, "Name", 160, issues);
     if (name.length < 2) issues.push("Name must be at least 2 characters");
     values.name = name;
   }
@@ -226,8 +234,12 @@ function validateProduct(input: ProductInput, partial: boolean) {
   if (!partial || input.quantity !== undefined) {
     values.quantity = wholeNumber(input.quantity, "Quantity", issues);
   }
-  if (input.description !== undefined) values.description = optionalStr(input.description);
-  if (input.location !== undefined) values.location = optionalStr(input.location);
+  if (input.description !== undefined) {
+    values.description = optionalBoundedStr(input.description, "Description", 2_000, issues);
+  }
+  if (input.location !== undefined) {
+    values.location = optionalBoundedStr(input.location, "Location", 160, issues);
+  }
   if (input.category_id !== undefined) {
     values.category_id = idOrNull(input.category_id, "Category", issues);
   }
