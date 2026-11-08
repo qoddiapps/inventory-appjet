@@ -1,4 +1,4 @@
-import { fail, ok, parseId, readJson } from "@/lib/api";
+import { assertSameOrigin, fail, ok, parseId, readJson } from "@/lib/api";
 import { deleteCategory, updateCategory } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";

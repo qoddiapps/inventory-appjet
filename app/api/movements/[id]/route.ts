@@ -1,4 +1,4 @@
-import { fail, ok, parseId } from "@/lib/api";
+import { assertSameOrigin, fail, ok, parseId } from "@/lib/api";
 import { deleteMovement } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";

@@ -3,8 +3,12 @@ import { listProducts } from "@/lib/repo";
 export const dynamic = "force-dynamic";
 
 export function csvCell(value: string | number | null | undefined): string {
-  const text = value === null || value === undefined ? "" : String(value);
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  let text = value === null || value === undefined ? "" : String(value);
+  // Prevent user-controlled text from becoming a formula when opened in a spreadsheet.
+  if (typeof value === "string" && /^(?:[=+\-@\t\r\n]|\s+[=+\-@])/.test(text)) {
+    text = `'${text}`;
+  }
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export async function GET() {
