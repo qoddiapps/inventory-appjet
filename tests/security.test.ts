@@ -152,3 +152,9 @@ test("browser security headers are configured for every route", async () => {
   assert.match(headers["Content-Security-Policy"], /frame-ancestors 'none'/);
   assert.match(headers["Content-Security-Policy"], /object-src 'none'/);
 });
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
