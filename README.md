@@ -94,3 +94,5 @@ lib/seed.ts          First-boot demo data
 lib/types.ts         Shared domain types
 lib/format.ts        Currency/date formatting and stock status
 ```
+
+[![Built with AppJet](https://appjet.ai/assets/brand/built-with-appjet.svg)](https://appjet.ai)
