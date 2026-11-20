@@ -20,6 +20,7 @@ const categoriesRoute = await import("../app/api/categories/route");
 const categoryIdRoute = await import("../app/api/categories/[id]/route");
 const statsRoute = await import("../app/api/stats/route");
 const movementsRoute = await import("../app/api/movements/route");
+const movementIdRoute = await import("../app/api/movements/[id]/route");
 const productsRoute = await import("../app/api/products/route");
 const productIdRoute = await import("../app/api/products/[id]/route");
 const suppliersRoute = await import("../app/api/suppliers/route");
@@ -247,6 +248,65 @@ test("anonymous callers cannot create or delete records", async () => {
   );
   assert.equal(deleteResponse.status, 401);
   assert.ok(repo.listCategories(adminSession).some((row) => row.id === category.id));
+});
+
+test("movement deletion requires an admin session and preserves stock history", async () => {
+  const product = repo.createProduct(adminSession, validProduct("SEC-MOVE-DELETE", 5));
+  const movement = repo.createMovement(adminSession, {
+    product_id: product.id,
+    type: "out",
+    quantity: 2,
+  });
+  const movementCount = repo.listMovements(adminSession, { productId: product.id }).length;
+  const quantityAfterMovement = repo.getProduct(adminSession, product.id).quantity;
+
+  const anonymous = (error: unknown) =>
+    error instanceof repo.AuthorizationError && error.status === 401;
+  const viewer = (error: unknown) =>
+    error instanceof repo.AuthorizationError && error.status === 403;
+
+  assert.throws(() => repo.deleteMovement(null, movement.id), anonymous);
+  assert.throws(() => repo.deleteMovement(viewerSession, movement.id), viewer);
+
+  const anonymousDelete = await movementIdRoute.DELETE(
+    new Request(`https://inventory.test/api/movements/${movement.id}`, {
+      method: "DELETE",
+      headers: { Origin: "https://inventory.test" },
+    }),
+    { params: Promise.resolve({ id: String(movement.id) }) },
+  );
+  assert.equal(anonymousDelete.status, 401);
+
+  const viewerDelete = await movementIdRoute.DELETE(
+    authorizedRequest(
+      `https://inventory.test/api/movements/${movement.id}`,
+      { method: "DELETE", headers: { Origin: "https://inventory.test" } },
+      "viewer",
+    ),
+    { params: Promise.resolve({ id: String(movement.id) }) },
+  );
+  assert.equal(viewerDelete.status, 403);
+
+  assert.equal(repo.getProduct(adminSession, product.id).quantity, quantityAfterMovement);
+  assert.equal(
+    repo.listMovements(adminSession, { productId: product.id }).length,
+    movementCount,
+  );
+
+  const adminDelete = await movementIdRoute.DELETE(
+    authorizedRequest(
+      `https://inventory.test/api/movements/${movement.id}`,
+      { method: "DELETE", headers: { Origin: "https://inventory.test" } },
+      "admin",
+    ),
+    { params: Promise.resolve({ id: String(movement.id) }) },
+  );
+  assert.equal(adminDelete.status, 200);
+  assert.equal(repo.getProduct(adminSession, product.id).quantity, 5);
+  assert.equal(
+    repo.listMovements(adminSession, { productId: product.id }).length,
+    movementCount - 1,
+  );
 });
 
 test("an authenticated viewer cannot read, export or mutate inventory", async () => {
