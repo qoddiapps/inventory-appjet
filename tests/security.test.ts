@@ -74,25 +74,25 @@ function jsonHeaders() {
 }
 
 test("a rejected direct quantity update cannot bypass the stock ledger", () => {
-  const product = repo.createProduct(validProduct("SEC-QUANTITY", 5));
+  const product = repo.createProduct(adminSession, validProduct("SEC-QUANTITY", 5));
 
   assert.throws(
-    () => repo.updateProduct(product.id, { quantity: 999 }),
+    () => repo.updateProduct(adminSession, product.id, { quantity: 999 }),
     repo.ValidationError,
   );
-  assert.equal(repo.getProduct(product.id).quantity, 5);
-  assert.equal(repo.listMovements({ productId: product.id }).length, 1);
+  assert.equal(repo.getProduct(adminSession, product.id).quantity, 5);
+  assert.equal(repo.listMovements(adminSession, { productId: product.id }).length, 1);
 });
 
 test("deleting a receipt cannot leave negative stock", () => {
-  const product = repo.createProduct(validProduct("SEC-DELETE", 10));
-  repo.createMovement({ product_id: product.id, type: "out", quantity: 4 });
-  assert.equal(repo.getProduct(product.id).quantity, 6);
+  const product = repo.createProduct(adminSession, validProduct("SEC-DELETE", 10));
+  repo.createMovement(adminSession, { product_id: product.id, type: "out", quantity: 4 });
+  assert.equal(repo.getProduct(adminSession, product.id).quantity, 6);
 
-  const receipt = repo.listMovements({ productId: product.id, type: "in" })[0];
-  assert.throws(() => repo.deleteMovement(receipt.id), repo.ValidationError);
-  assert.equal(repo.getProduct(product.id).quantity, 6);
-  assert.ok(repo.listMovements({ productId: product.id }).some((row) => row.id === receipt.id));
+  const receipt = repo.listMovements(adminSession, { productId: product.id, type: "in" })[0];
+  assert.throws(() => repo.deleteMovement(adminSession, receipt.id), repo.ValidationError);
+  assert.equal(repo.getProduct(adminSession, product.id).quantity, 6);
+  assert.ok(repo.listMovements(adminSession, { productId: product.id }).some((row) => row.id === receipt.id));
 });
 
 test("CSV cells neutralize spreadsheet formulas without damaging ordinary data", () => {
@@ -173,14 +173,14 @@ test("malformed product filters and sorts return 400", async () => {
 
 test("persisted quantities and text have enforceable bounds", () => {
   assert.throws(
-    () => repo.createProduct(validProduct("SEC-HUGE", 1_000_000_001)),
+    () => repo.createProduct(adminSession, validProduct("SEC-HUGE", 1_000_000_001)),
     repo.ValidationError,
   );
-  assert.throws(() => repo.createCategory({ name: "x".repeat(129) }), repo.ValidationError);
+  assert.throws(() => repo.createCategory(adminSession, { name: "x".repeat(129) }), repo.ValidationError);
 });
 
 test("anonymous callers cannot read any inventory, stats or export data", async () => {
-  const product = repo.createProduct(validProduct("SEC-ANON-READ"));
+  const product = repo.createProduct(adminSession, validProduct("SEC-ANON-READ"));
   const responses = [
     await productsRoute.GET(new Request("https://inventory.test/api/products")),
     await productIdRoute.GET(
@@ -201,7 +201,7 @@ test("anonymous callers cannot read any inventory, stats or export data", async 
 });
 
 test("anonymous callers cannot create or delete records", async () => {
-  const productCount = repo.listProducts().length;
+  const productCount = repo.listProducts(adminSession).length;
   const productResponse = await productsRoute.POST(
     new Request("https://inventory.test/api/products", {
       method: "POST",
@@ -210,9 +210,9 @@ test("anonymous callers cannot create or delete records", async () => {
     }),
   );
   assert.equal(productResponse.status, 401);
-  assert.equal(repo.listProducts().length, productCount);
+  assert.equal(repo.listProducts(adminSession).length, productCount);
 
-  const category = repo.createCategory({ name: "SEC-ANON-DELETE" });
+  const category = repo.createCategory(adminSession, { name: "SEC-ANON-DELETE" });
   const deleteResponse = await categoryIdRoute.DELETE(
     new Request(`https://inventory.test/api/categories/${category.id}`, {
       method: "DELETE",
@@ -221,7 +221,7 @@ test("anonymous callers cannot create or delete records", async () => {
     { params: Promise.resolve({ id: String(category.id) }) },
   );
   assert.equal(deleteResponse.status, 401);
-  assert.ok(repo.listCategories().some((row) => row.id === category.id));
+  assert.ok(repo.listCategories(adminSession).some((row) => row.id === category.id));
 });
 
 test("an authenticated viewer cannot read, export or mutate inventory", async () => {
@@ -245,7 +245,7 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
   );
   assert.equal(categoryReadResponse.status, 403);
 
-  const detailProduct = repo.createProduct(validProduct("SEC-VIEWER-READ"));
+  const detailProduct = repo.createProduct(adminSession, validProduct("SEC-VIEWER-READ"));
   const productDetailResponse = await productIdRoute.GET(
     authorizedRequest(`https://inventory.test/api/products/${detailProduct.id}`, {}, "viewer"),
     { params: Promise.resolve({ id: String(detailProduct.id) }) },
@@ -262,7 +262,7 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
   );
   assert.equal(statsReadResponse.status, 403);
 
-  const productCount = repo.listProducts().length;
+  const productCount = repo.listProducts(adminSession).length;
   const createResponse = await productsRoute.POST(
     authorizedRequest(
       "https://inventory.test/api/products",
@@ -275,9 +275,9 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
     ),
   );
   assert.equal(createResponse.status, 403);
-  assert.equal(repo.listProducts().length, productCount);
+  assert.equal(repo.listProducts(adminSession).length, productCount);
 
-  const category = repo.createCategory({ name: "SEC-VIEWER-DELETE" });
+  const category = repo.createCategory(adminSession, { name: "SEC-VIEWER-DELETE" });
   const deleteResponse = await categoryIdRoute.DELETE(
     authorizedRequest(
       `https://inventory.test/api/categories/${category.id}`,
@@ -287,12 +287,12 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
     { params: Promise.resolve({ id: String(category.id) }) },
   );
   assert.equal(deleteResponse.status, 403);
-  assert.ok(repo.listCategories().some((row) => row.id === category.id));
+  assert.ok(repo.listCategories(adminSession).some((row) => row.id === category.id));
 });
 
 test("supplier mutations require an admin session", async () => {
-  const existing = repo.createSupplier({ name: "SEC-SUPPLIER-BASE", lead_time_days: 3 });
-  const supplierCount = repo.listSuppliers().length;
+  const existing = repo.createSupplier(adminSession, { name: "SEC-SUPPLIER-BASE", lead_time_days: 3 });
+  const supplierCount = repo.listSuppliers(adminSession).length;
 
   const anonymousCreate = await suppliersRoute.POST(
     new Request("https://inventory.test/api/suppliers", {
@@ -302,7 +302,7 @@ test("supplier mutations require an admin session", async () => {
     }),
   );
   assert.equal(anonymousCreate.status, 401);
-  assert.equal(repo.listSuppliers().length, supplierCount);
+  assert.equal(repo.listSuppliers(adminSession).length, supplierCount);
 
   const anonymousUpdate = await supplierIdRoute.PATCH(
     new Request(`https://inventory.test/api/suppliers/${existing.id}`, {
@@ -335,7 +335,7 @@ test("supplier mutations require an admin session", async () => {
     ),
   );
   assert.equal(viewerCreate.status, 403);
-  assert.equal(repo.listSuppliers().length, supplierCount);
+  assert.equal(repo.listSuppliers(adminSession).length, supplierCount);
 
   const viewerUpdate = await supplierIdRoute.PATCH(
     authorizedRequest(
@@ -361,7 +361,7 @@ test("supplier mutations require an admin session", async () => {
   );
   assert.equal(viewerDelete.status, 403);
 
-  const unchanged = repo.listSuppliers().find((row) => row.id === existing.id);
+  const unchanged = repo.listSuppliers(adminSession).find((row) => row.id === existing.id);
   assert.ok(unchanged);
   assert.equal(unchanged.name, "SEC-SUPPLIER-BASE");
 
@@ -395,7 +395,7 @@ test("supplier mutations require an admin session", async () => {
     { params: Promise.resolve({ id: String(created.id) }) },
   );
   assert.equal(adminDelete.status, 200);
-  assert.equal(repo.listSuppliers().some((row) => row.id === created.id), false);
+  assert.equal(repo.listSuppliers(adminSession).some((row) => row.id === created.id), false);
 });
 
 test("an admin session retains legitimate inventory access", async () => {
