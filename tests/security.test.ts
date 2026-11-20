@@ -27,6 +27,15 @@ const supplierIdRoute = await import("../app/api/suppliers/[id]/route");
 const loginRoute = await import("../app/api/auth/login/route");
 const nextConfig = (await import("../next.config")).default;
 
+function sessionFor(role: "admin" | "viewer") {
+  const session = readSessionToken(createSessionToken(role));
+  if (!session) throw new Error("test session could not be created");
+  return session;
+}
+
+const adminSession = sessionFor("admin");
+const viewerSession = sessionFor("viewer");
+
 after(() => {
   rmSync(testDataDir, { recursive: true, force: true });
 });
