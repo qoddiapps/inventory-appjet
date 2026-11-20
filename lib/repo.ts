@@ -1,3 +1,4 @@
+import type { Session } from "./auth";
 import { getDb, nowIso } from "./db";
 import type {
   Category,
@@ -22,6 +23,31 @@ export class NotFoundError extends Error {
     super(message);
     this.name = "NotFoundError";
   }
+}
+
+export class AuthorizationError extends Error {
+  status: 401 | 403;
+
+  constructor(status: 401 | 403, message: string) {
+    super(message);
+    this.name = "AuthorizationError";
+    this.status = status;
+  }
+}
+
+/**
+ * Repository-level fail-closed guard. HTTP handlers and server pages resolve a
+ * verified session first; this keeps a future direct caller from bypassing
+ * that boundary and touching inventory data without an authorized principal.
+ */
+function requireRepoAdmin(session: Session | null | undefined): Session {
+  if (!session || !Number.isInteger(session.exp) || session.exp <= Math.floor(Date.now() / 1000)) {
+    throw new AuthorizationError(401, "Authentication required");
+  }
+  if (session.role !== "admin") {
+    throw new AuthorizationError(403, "Insufficient permissions");
+  }
+  return session;
 }
 
 interface ProductRow {
@@ -159,7 +185,8 @@ export interface ProductFilter {
   sort?: "name" | "quantity" | "value" | "updated";
 }
 
-export function listProducts(filter: ProductFilter = {}): Product[] {
+export function listProducts(session: Session | null, filter: ProductFilter = {}): Product[] {
+  requireRepoAdmin(session);
   const where: string[] = [];
   const params: Record<string, unknown> = {};
 
@@ -192,7 +219,8 @@ export function listProducts(filter: ProductFilter = {}): Product[] {
   return (getDb().prepare(sql).all(params) as ProductRow[]).map(mapProduct);
 }
 
-export function getProduct(id: number): Product {
+export function getProduct(session: Session | null, id: number): Product {
+  requireRepoAdmin(session);
   const row = getDb()
     .prepare(`${PRODUCT_SELECT} WHERE p.id = ?`)
     .get(id) as ProductRow | undefined;
@@ -274,7 +302,8 @@ function ensureSkuAvailable(sku: string, excludeId?: number) {
   if (row) throw new ValidationError([`SKU ${sku} is already in use`]);
 }
 
-export function createProduct(input: ProductInput): Product {
+export function createProduct(session: Session | null, input: ProductInput): Product {
+  requireRepoAdmin(session);
   const values = validateProduct(input, false) as {
     sku: string;
     name: string;
@@ -308,11 +337,12 @@ export function createProduct(input: ProductInput): Product {
        VALUES (?, 'in', ?, ?, 'Initial stock', 'OPENING-BALANCE', ?)`,
     ).run(id, values.quantity, values.quantity, nowIso());
   }
-  return getProduct(id);
+  return getProduct(session, id);
 }
 
-export function updateProduct(id: number, input: ProductInput): Product {
-  const existing = getProduct(id);
+export function updateProduct(session: Session | null, id: number, input: ProductInput): Product {
+  requireRepoAdmin(session);
+  const existing = getProduct(session, id);
   const values = validateProduct(input, true) as Record<string, unknown>;
 
   // Reject before any UPDATE: stock only changes through the movement ledger.
@@ -331,17 +361,19 @@ export function updateProduct(id: number, input: ProductInput): Product {
       .run({ ...values, updated: nowIso(), id });
   }
 
-  return getProduct(id);
+  return getProduct(session, id);
 }
 
-export function deleteProduct(id: number): void {
+export function deleteProduct(session: Session | null, id: number): void {
+  requireRepoAdmin(session);
   const info = getDb().prepare("DELETE FROM products WHERE id = ?").run(id);
   if (info.changes === 0) throw new NotFoundError("Product not found");
 }
 
 /* ---------------------------------------------------------------- categories */
 
-export function listCategories(): Category[] {
+export function listCategories(session: Session | null): Category[] {
+  requireRepoAdmin(session);
   return getDb()
     .prepare(
       `SELECT c.id, c.name, c.description, c.created_at,
@@ -360,7 +392,11 @@ function validateCategory(input: { name?: unknown; description?: unknown }) {
   return { name, description };
 }
 
-export function createCategory(input: { name?: unknown; description?: unknown }): Category {
+export function createCategory(
+  session: Session | null,
+  input: { name?: unknown; description?: unknown },
+): Category {
+  requireRepoAdmin(session);
   const values = validateCategory(input);
   try {
     const info = getDb()
@@ -374,7 +410,12 @@ export function createCategory(input: { name?: unknown; description?: unknown })
   }
 }
 
-export function updateCategory(id: number, input: { name?: unknown; description?: unknown }): Category {
+export function updateCategory(
+  session: Session | null,
+  id: number,
+  input: { name?: unknown; description?: unknown },
+): Category {
+  requireRepoAdmin(session);
   const values = validateCategory(input);
   try {
     const info = getDb()
@@ -390,14 +431,16 @@ export function updateCategory(id: number, input: { name?: unknown; description?
     .get(id) as Category;
 }
 
-export function deleteCategory(id: number): void {
+export function deleteCategory(session: Session | null, id: number): void {
+  requireRepoAdmin(session);
   const info = getDb().prepare("DELETE FROM categories WHERE id = ?").run(id);
   if (info.changes === 0) throw new NotFoundError("Category not found");
 }
 
 /* ----------------------------------------------------------------- suppliers */
 
-export function listSuppliers(): Supplier[] {
+export function listSuppliers(session: Session | null): Supplier[] {
+  requireRepoAdmin(session);
   return getDb()
     .prepare(
       `SELECT s.id, s.name, s.contact_name, s.email, s.phone, s.lead_time_days, s.created_at,
@@ -442,7 +485,8 @@ function validateSupplier(input: SupplierInput) {
   };
 }
 
-export function createSupplier(input: SupplierInput): Supplier {
+export function createSupplier(session: Session | null, input: SupplierInput): Supplier {
+  requireRepoAdmin(session);
   const values = validateSupplier(input);
   try {
     const info = getDb()
@@ -459,7 +503,8 @@ export function createSupplier(input: SupplierInput): Supplier {
   }
 }
 
-export function updateSupplier(id: number, input: SupplierInput): Supplier {
+export function updateSupplier(session: Session | null, id: number, input: SupplierInput): Supplier {
+  requireRepoAdmin(session);
   const values = validateSupplier(input);
   try {
     const info = getDb()
@@ -476,7 +521,8 @@ export function updateSupplier(id: number, input: SupplierInput): Supplier {
   return getDb().prepare("SELECT * FROM suppliers WHERE id = ?").get(id) as Supplier;
 }
 
-export function deleteSupplier(id: number): void {
+export function deleteSupplier(session: Session | null, id: number): void {
+  requireRepoAdmin(session);
   const info = getDb().prepare("DELETE FROM suppliers WHERE id = ?").run(id);
   if (info.changes === 0) throw new NotFoundError("Supplier not found");
 }
@@ -493,11 +539,15 @@ export interface MovementInput {
 
 const MOVEMENT_TYPES: MovementType[] = ["in", "out", "adjust"];
 
-export function listMovements(options: {
-  productId?: number;
-  type?: string;
-  limit?: number;
-} = {}): StockMovement[] {
+export function listMovements(
+  session: Session | null,
+  options: {
+    productId?: number;
+    type?: string;
+    limit?: number;
+  } = {},
+): StockMovement[] {
+  requireRepoAdmin(session);
   const where: string[] = [];
   const params: Record<string, unknown> = {};
   if (options.productId !== undefined) {
@@ -531,7 +581,8 @@ export function listMovements(options: {
     .all(params) as StockMovement[];
 }
 
-export function createMovement(input: MovementInput): StockMovement {
+export function createMovement(session: Session | null, input: MovementInput): StockMovement {
+  requireRepoAdmin(session);
   const issues: string[] = [];
   const productId = Number(input.product_id);
   if (!Number.isSafeInteger(productId) || productId <= 0) issues.push("A product is required");
@@ -555,7 +606,7 @@ export function createMovement(input: MovementInput): StockMovement {
 
   db.transaction(() => {
     // Read inside the transaction so concurrent writes cannot use a stale balance.
-    const product = getProduct(productId);
+    const product = getProduct(session, productId);
     const delta = type === "in" ? quantity : type === "out" ? -quantity : quantity - product.quantity;
     const nextQuantity = product.quantity + delta;
 
@@ -599,7 +650,8 @@ export function createMovement(input: MovementInput): StockMovement {
     .get(movementId) as StockMovement;
 }
 
-export function deleteMovement(id: number): void {
+export function deleteMovement(session: Session | null, id: number): void {
+  requireRepoAdmin(session);
   const db = getDb();
   db.transaction(() => {
     const movement = db
@@ -630,7 +682,8 @@ export function deleteMovement(id: number): void {
 
 /* --------------------------------------------------------------------- stats */
 
-export function getStats(): Stats {
+export function getStats(session: Session | null): Stats {
+  requireRepoAdmin(session);
   const db = getDb();
   const totals = db
     .prepare(
@@ -658,7 +711,7 @@ export function getStats(): Stats {
     )
     .get() as { category_count: number; supplier_count: number };
 
-  const lowStock = listProducts({ lowStock: true, sort: "quantity" }).slice(0, 8);
+  const lowStock = listProducts(session, { lowStock: true, sort: "quantity" }).slice(0, 8);
 
   const category_breakdown = db
     .prepare(
@@ -681,7 +734,7 @@ export function getStats(): Stats {
     category_count: counts.category_count,
     supplier_count: counts.supplier_count,
     low_stock: lowStock,
-    recent_movements: listMovements({ limit: 6 }),
+    recent_movements: listMovements(session, { limit: 6 }),
     category_breakdown: category_breakdown.map((row) => ({
       name: row.name,
       units: row.units,
