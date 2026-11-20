@@ -231,6 +231,28 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
   );
   assert.equal(supplierReadResponse.status, 403);
 
+  const categoryReadResponse = await categoriesRoute.GET(
+    authorizedRequest("https://inventory.test/api/categories", {}, "viewer"),
+  );
+  assert.equal(categoryReadResponse.status, 403);
+
+  const detailProduct = repo.createProduct(validProduct("SEC-VIEWER-READ"));
+  const productDetailResponse = await productIdRoute.GET(
+    authorizedRequest(`https://inventory.test/api/products/${detailProduct.id}`, {}, "viewer"),
+    { params: Promise.resolve({ id: String(detailProduct.id) }) },
+  );
+  assert.equal(productDetailResponse.status, 403);
+
+  const movementReadResponse = await movementsRoute.GET(
+    authorizedRequest("https://inventory.test/api/movements", {}, "viewer"),
+  );
+  assert.equal(movementReadResponse.status, 403);
+
+  const statsReadResponse = await statsRoute.GET(
+    authorizedRequest("https://inventory.test/api/stats", {}, "viewer"),
+  );
+  assert.equal(statsReadResponse.status, 403);
+
   const productCount = repo.listProducts().length;
   const createResponse = await productsRoute.POST(
     authorizedRequest(
