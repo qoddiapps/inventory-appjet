@@ -15,6 +15,16 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.assign("/login");
+    }
+  }
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -92,6 +102,18 @@ export function Sidebar() {
             </svg>
           </span>
         </a>
+
+        <button
+          type="button"
+          onClick={signOut}
+          disabled={signingOut}
+          className="btn-ghost mt-3 w-full justify-start"
+        >
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 12H4m4-4l-4 4 4 4M14 4h5v16h-5" />
+          </svg>
+          {signingOut ? "Signing out…" : "Sign out"}
+        </button>
       </aside>
     </>
   );
