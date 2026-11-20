@@ -96,6 +96,47 @@ test("deleting a receipt cannot leave negative stock", () => {
   assert.ok(repo.listMovements(adminSession, { productId: product.id }).some((row) => row.id === receipt.id));
 });
 
+test("deleting a product cannot erase its stock-movement history", async () => {
+  const product = repo.createProduct(adminSession, validProduct("SEC-PRODUCT-DELETE", 5));
+  repo.createMovement(adminSession, { product_id: product.id, type: "out", quantity: 2 });
+  const movementsBefore = repo.listMovements(adminSession, { productId: product.id });
+  assert.ok(movementsBefore.length >= 2);
+
+  assert.throws(
+    () => repo.deleteProduct(adminSession, product.id),
+    (error: unknown) => error instanceof repo.ConflictError,
+  );
+
+  const deleteResponse = await productIdRoute.DELETE(
+    authorizedRequest(`https://inventory.test/api/products/${product.id}`, {
+      method: "DELETE",
+      headers: { Origin: "https://inventory.test" },
+    }),
+    { params: Promise.resolve({ id: String(product.id) }) },
+  );
+  assert.equal(deleteResponse.status, 409);
+  assert.equal(repo.getProduct(adminSession, product.id).id, product.id);
+  assert.deepEqual(
+    repo.listMovements(adminSession, { productId: product.id }),
+    movementsBefore,
+  );
+
+  const db = (await import("../lib/db")).getDb();
+  assert.throws(
+    () => db.prepare("DELETE FROM products WHERE id = ?").run(product.id),
+    /FOREIGN KEY constraint failed/,
+  );
+  assert.equal(repo.getProduct(adminSession, product.id).id, product.id);
+  assert.deepEqual(
+    repo.listMovements(adminSession, { productId: product.id }),
+    movementsBefore,
+  );
+
+  const emptyProduct = repo.createProduct(adminSession, validProduct("SEC-PRODUCT-DELETE-EMPTY", 0));
+  repo.deleteProduct(adminSession, emptyProduct.id);
+  assert.throws(() => repo.getProduct(adminSession, emptyProduct.id), repo.NotFoundError);
+});
+
 test("repository operations fail closed without a verified admin session", () => {
   const product = repo.createProduct(adminSession, validProduct("SEC-REPO-GUARD"));
   const category = repo.createCategory(adminSession, { name: "SEC-REPO-GUARD" });
