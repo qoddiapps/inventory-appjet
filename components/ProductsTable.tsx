@@ -52,7 +52,7 @@ export function ProductsTable({
   }, [products, search, category, supplier, onlyLow, sort]);
 
   async function remove(product: Product) {
-    if (!confirm(`Delete ${product.name} (${product.sku})? This also removes its stock history.`)) return;
+    if (!confirm(`Delete ${product.name} (${product.sku})? Products with stock history cannot be deleted.`)) return;
     setBusyId(product.id);
     try {
       const response = await fetch(`/api/products/${product.id}`, { method: "DELETE" });

@@ -35,6 +35,15 @@ export class AuthorizationError extends Error {
   }
 }
 
+export class ConflictError extends Error {
+  status = 409 as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "ConflictError";
+  }
+}
+
 /**
  * Repository-level fail-closed guard. HTTP handlers and server pages resolve a
  * verified session first; this keeps a future direct caller from bypassing
@@ -366,7 +375,14 @@ export function updateProduct(session: Session | null, id: number, input: Produc
 
 export function deleteProduct(session: Session | null, id: number): void {
   requireRepoAdmin(session);
-  const info = getDb().prepare("DELETE FROM products WHERE id = ?").run(id);
+  const db = getDb();
+  const movement = db
+    .prepare("SELECT 1 FROM stock_movements WHERE product_id = ? LIMIT 1")
+    .get(id);
+  if (movement) {
+    throw new ConflictError("Product has stock movement history and cannot be deleted");
+  }
+  const info = db.prepare("DELETE FROM products WHERE id = ?").run(id);
   if (info.changes === 0) throw new NotFoundError("Product not found");
 }
 

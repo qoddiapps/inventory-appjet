@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS products (
 
 CREATE TABLE IF NOT EXISTS stock_movements (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
   type       TEXT NOT NULL CHECK (type IN ('in', 'out', 'adjust')),
   quantity   INTEGER NOT NULL,
   delta      INTEGER NOT NULL,
