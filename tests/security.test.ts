@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, test } from "node:test";
@@ -13,7 +13,7 @@ process.env.STOCKROOM_SESSION_SECRET = "test-session-secret-0123456789abcdef";
 
 const repo = await import("../lib/repo");
 const { readJson } = await import("../lib/api");
-const { createSessionToken, readSessionToken, SESSION_COOKIE, SESSION_TTL_SECONDS } = await import("../lib/auth");
+const { createSessionToken, readSessionToken, sessionHasRole, SESSION_COOKIE, SESSION_TTL_SECONDS } = await import("../lib/auth");
 const { csvCell } = await import("../app/api/export/route");
 const exportRoute = await import("../app/api/export/route");
 const categoriesRoute = await import("../app/api/categories/route");
@@ -250,6 +250,30 @@ test("an admin session retains legitimate inventory access", async () => {
   );
   assert.equal(response.status, 200);
   assert.ok(Array.isArray(await response.json()));
+});
+
+test("admin-only page policy rejects viewer sessions and covers every inventory route", () => {
+  const viewer = readSessionToken(createSessionToken("viewer"));
+  const admin = readSessionToken(createSessionToken("admin"));
+  assert.ok(viewer);
+  assert.ok(admin);
+  assert.equal(sessionHasRole(null, "admin"), false);
+  assert.equal(sessionHasRole(viewer, "admin"), false);
+  assert.equal(sessionHasRole(admin, "admin"), true);
+
+  const inventoryDir = path.join(process.cwd(), "app/(inventory)");
+  const routeFiles = readdirSync(inventoryDir, { recursive: true })
+    .filter((file) => file.endsWith("page.tsx") || file.endsWith("layout.tsx"))
+    .map((file) => path.join(inventoryDir, file));
+  assert.ok(routeFiles.length >= 6);
+
+  for (const file of routeFiles) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /await\s+requirePageSession\("admin"\)/, file);
+  }
+
+  const guardSource = readFileSync(path.join(process.cwd(), "lib/page-auth.ts"), "utf8");
+  assert.match(guardSource, /if\s*\(!sessionHasRole\(session, role\)\)\s*notFound\(\)/);
 });
 
 test("administrator login issues a signed HttpOnly strict cookie", async () => {
