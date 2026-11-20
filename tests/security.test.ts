@@ -226,6 +226,11 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
   );
   assert.equal(exportResponse.status, 403);
 
+  const supplierReadResponse = await suppliersRoute.GET(
+    authorizedRequest("https://inventory.test/api/suppliers", {}, "viewer"),
+  );
+  assert.equal(supplierReadResponse.status, 403);
+
   const productCount = repo.listProducts().length;
   const createResponse = await productsRoute.POST(
     authorizedRequest(
