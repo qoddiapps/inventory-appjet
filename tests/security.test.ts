@@ -148,11 +148,13 @@ test("repository operations fail closed without a verified admin session", () =>
     error instanceof repo.AuthorizationError && error.status === 403;
 
   assert.throws(() => repo.listProducts(null), anonymous);
+  assert.throws(() => repo.getStats(null), anonymous);
   assert.throws(() => repo.getProduct(null, product.id), anonymous);
   assert.throws(() => repo.createCategory(null, { name: "SEC-REPO-ANON" }), anonymous);
   assert.throws(() => repo.deleteProduct(null, product.id), anonymous);
 
   assert.throws(() => repo.listProducts(viewerSession), viewer);
+  assert.throws(() => repo.getStats(viewerSession), viewer);
   assert.throws(() => repo.createProduct(viewerSession, validProduct("SEC-REPO-VIEWER")), viewer);
   assert.throws(() => repo.deleteProduct(viewerSession, product.id), viewer);
   assert.throws(() => repo.deleteCategory(viewerSession, category.id), viewer);
