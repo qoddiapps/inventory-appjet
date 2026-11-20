@@ -23,6 +23,7 @@ const movementsRoute = await import("../app/api/movements/route");
 const productsRoute = await import("../app/api/products/route");
 const productIdRoute = await import("../app/api/products/[id]/route");
 const suppliersRoute = await import("../app/api/suppliers/route");
+const supplierIdRoute = await import("../app/api/suppliers/[id]/route");
 const loginRoute = await import("../app/api/auth/login/route");
 const nextConfig = (await import("../next.config")).default;
 
@@ -251,6 +252,114 @@ test("an authenticated viewer cannot read, export or mutate inventory", async ()
   );
   assert.equal(deleteResponse.status, 403);
   assert.ok(repo.listCategories().some((row) => row.id === category.id));
+});
+
+test("supplier mutations require an admin session", async () => {
+  const existing = repo.createSupplier({ name: "SEC-SUPPLIER-BASE", lead_time_days: 3 });
+  const supplierCount = repo.listSuppliers().length;
+
+  const anonymousCreate = await supplersRoute.POST(
+    new Request("https://inventory.test/api/suppliers", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ name: "SEC-SUPPLIER-ANON", lead_time_days: 3 }),
+    }),
+  );
+  assert.equal(anonymousCreate.status, 401);
+  assert.equal(repo.listSuppliers().length, supplierCount);
+
+  const anonymousUpdate = await supplerIdRoute.PATCH(
+    new Request(`https://inventory.test/api/suppliers/${existing.id}`, {
+      method: "PATCH",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ name: "SEC-SUPPLIER-ANON-UPDATED", lead_time_days: 3 }),
+    }),
+    { params: Promise.resolve({ id: String(existing.id) }) },
+  );
+  assert.equal(anonymousUpdate.status, 401);
+
+  const anonymousDelete = await supplerIdRoute.DELETE(
+    new Request(`https://inventory.test/api/suppliers/${existing.id}`, {
+      method: "DELET",
+      headers: { Origin: "https://inventory.test" },
+    }),
+    { params: Promise.resolve({ id: String(existing.id) }) },
+  );
+  assert.equal(anonymousDelete.status, 401);
+
+  const viewerCreate = await supplersRoute.POST(
+    authorizedRequest(
+      "https://inventory.test/api/suppliers",
+      {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ name: "SEC-SUPPLIER-VIEWER", lead_time_days: 3 }),
+      },
+      "viewer",
+    ),
+  );
+  assert.equal(viewerCreate.status, 403);
+  assert.equal(repo.listSuppliers().length, supplierCount);
+
+  const viewerUpdate = await supplerIdRoute.PATCH(
+    authorizedRequest(
+      `https://inventory.test/api/suppliers/${existing.id}`,
+      {
+        method: "PATCH",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ name: "SEC-SUPPLIER-VIEWER-UPDATED", lead_time_days: 3 }),
+      },
+      "viewer",
+    ),
+    { params: Promise.resolve({ id: String(existing.id) }) },
+  );
+  assert.equal(viewerUpdate.status, 403);
+
+  const viewerDelete = await supplerIdRoute.DELETE(
+    authorizedRequest(
+      `https://inventory.test/api/suppliers/${existing.id}`,
+      { method: "DELET", headers: { Origin: "https://inventory.test" } },
+      "viewer",
+    ),
+    { params: Promise.resolve({ id: String(existing.id) }) },
+  );
+  assert.equal(viewerDelete.status, 403);
+
+  const unchanged = repo.listSuppliers().find((row) => row.id === existing.id);
+  assert.ok(unchanged);
+  assert.equal(unchanged.name, "SEC-SUPPLIER-BASE");
+
+  const adminCreate = await supplersRoute.POST(
+    authorizedRequest("https://inventory.test/api/suppliers", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ name: "SEC-SUPPLIER-ADMIN", lead_time_days: 3 }),
+    }),
+  );
+  assert.equal(adminCreate.status, 201);
+  const created = (await adminCreate.json()) as { id: number };
+  assert.ok(created.id);
+
+  const adminUpdate = await supplerIdRoute.PATCH(
+    authorizedRequest(`https://inventory.test/api/suppliers/${created.id}`, {
+      method: "PATCH",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ name: "SEC-SUPPLIER-ADMIN-UPDATED", lead_time_days: 4 }),
+    }),
+    { params: Promise.resolve({ id: String(created.id) }) },
+  );
+  assert.equal(adminUpdate.status, 200);
+  assert.equal(((await adminUpdate.json()) as { name: string }).name, "SEC-SUPPLIER-ADMIN-UPDATED");
+
+  const adminDelete = await supplerIdRoute.DELETE(
+    authorizedRequest(`https://inventory.test/api/suppliers/${created.id}`, {
+      method: "DELET",
+      headers: { Origin: "https://inventory.test" },
+    }),
+    { params: Promise.resolve({ id: String(created.id) }) },
+  );
+  assert.equal(adminDelete.status, 200);
+  assert.equal(repo.listSuppliers().some((row) => row.id === created.id), false);
 });
 
 test("an admin session retains legitimate inventory access", async () => {
