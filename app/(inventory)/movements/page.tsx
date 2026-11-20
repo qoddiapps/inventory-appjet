@@ -6,9 +6,9 @@ import { requirePageSession } from "@/lib/page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function MovementsPage() {
-  await requirePageSession("admin");
-  const movements = listMovements({ limit: 300 });
-  const products = listProducts({ sort: "name" });
+  const session = await requirePageSession("admin");
+  const movements = listMovements(session, { limit: 300 });
+  const products = listProducts(session, { sort: "name" });
 
   return (
     <div>

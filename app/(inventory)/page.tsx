@@ -8,9 +8,9 @@ import { requirePageSession } from "@/lib/page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  await requirePageSession("admin");
-  const stats = getStats();
-  const movements = listMovements({ limit: 6 });
+  const session = await requirePageSession("admin");
+  const stats = getStats(session);
+  const movements = listMovements(session, { limit: 6 });
   const maxValue = Math.max(1, ...stats.category_breakdown.map((row) => row.value));
 
   return (
