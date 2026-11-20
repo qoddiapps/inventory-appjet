@@ -45,10 +45,37 @@ No human wrote or hand-edited the code in this repository.
 Data lives in a SQLite file under `DATA_DIR` (default `/data`) and is seeded
 automatically on first boot, so the demo is useful immediately.
 
+## Authentication
+
+All inventory pages, API reads and mutations require an administrator session.
+The application fails closed when authentication is not configured: there is no
+anonymous or default-password fallback.
+
+Set both required environment variables before starting the app:
+
+| Variable                   | Requirement                                      |
+| -------------------------- | ------------------------------------------------ |
+| `STOCKROOM_ADMIN_PASSWORD` | Administrator password, at least 12 characters   |
+| `STOCKROOM_SESSION_SECRET` | Random signing secret, at least 32 bytes         |
+
+Generate a suitable signing secret with:
+
+```bash
+openssl rand -base64 48
+```
+
+Sessions are signed with HMAC-SHA256 and stored in an `HttpOnly`, `SameSite=Strict`
+cookie. They expire after eight hours. Sign in at `/login`; sign out from the sidebar.
+
 ## API
+
+All routes below require an authenticated administrator session except
+`POST /api/auth/login` and `POST /api/auth/logout`.
 
 | Method | Route                   | Purpose                          |
 | ------ | ----------------------- | -------------------------------- |
+| POST   | `/api/auth/login`       | Start an administrator session   |
+| POST   | `/api/auth/logout`      | End the current session          |
 | GET    | `/api/stats`            | Dashboard aggregates             |
 | GET    | `/api/products`         | List with search/filter/sort     |
 | POST   | `/api/products`         | Create a product                 |
@@ -66,6 +93,8 @@ automatically on first boot, so the demo is useful immediately.
 
 ```bash
 npm install
+export STOCKROOM_ADMIN_PASSWORD='choose-a-strong-password'
+export STOCKROOM_SESSION_SECRET="$(openssl rand -base64 48)"
 npm run dev          # http://localhost:3000
 ```
 
@@ -80,7 +109,10 @@ npm start
 
 ```bash
 docker build -t stockroom .
-docker run -p 3000:3000 -v stockroom-data:/data stockroom
+docker run -p 3000:3000 \
+  -e STOCKROOM_ADMIN_PASSWORD='choose-a-strong-password' \
+  -e STOCKROOM_SESSION_SECRET="$(openssl rand -base64 48)" \
+  -v stockroom-data:/data stockroom
 ```
 
 ## Project structure
