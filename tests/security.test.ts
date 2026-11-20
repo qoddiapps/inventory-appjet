@@ -21,6 +21,8 @@ const categoryIdRoute = await import("../app/api/categories/[id]/route");
 const statsRoute = await import("../app/api/stats/route");
 const movementsRoute = await import("../app/api/movements/route");
 const productsRoute = await import("../app/api/products/route");
+const productIdRoute = await import("../app/api/products/[id]/route");
+const suppliersRoute = await import("../app/api/suppliers/route");
 const loginRoute = await import("../app/api/auth/login/route");
 const nextConfig = (await import("../next.config")).default;
 
@@ -167,10 +169,17 @@ test("persisted quantities and text have enforceable bounds", () => {
   assert.throws(() => repo.createCategory({ name: "x".repeat(129) }), repo.ValidationError);
 });
 
-test("anonymous callers cannot read inventory, stats or export data", async () => {
+test("anonymous callers cannot read any inventory, stats or export data", async () => {
+  const product = repo.createProduct(validProduct("SEC-ANON-READ"));
   const responses = [
     await productsRoute.GET(new Request("https://inventory.test/api/products")),
+    await productIdRoute.GET(
+      new Request(`https://inventory.test/api/products/${product.id}`),
+      { params: Promise.resolve({ id: String(product.id) }) },
+    ),
     await categoriesRoute.GET(new Request("https://inventory.test/api/categories")),
+    await suppliersRoute.GET(new Request("https://inventory.test/api/suppliers")),
+    await movementsRoute.GET(new Request("https://inventory.test/api/movements")),
     await statsRoute.GET(new Request("https://inventory.test/api/stats")),
     await exportRoute.GET(new Request("https://inventory.test/api/export")),
   ];
