@@ -8,9 +8,9 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function DELETE(request: Request, { params }: Params) {
   try {
-    requireApiRole(request, "admin");
+    const session = requireApiRole(request, "admin");
     assertSameOrigin(request);
-    deleteMovement(parseId((await params).id));
+    deleteMovement(session, parseId((await params).id));
     return ok({ deleted: true });
   } catch (error) {
     return fail(error);

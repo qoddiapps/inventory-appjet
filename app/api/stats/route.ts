@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    requireApiRole(request, "admin");
-    return ok(getStats());
+    const session = requireApiRole(request, "admin");
+    return ok(getStats(session));
   } catch (error) {
     return fail(error);
   }

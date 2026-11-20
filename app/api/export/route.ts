@@ -15,9 +15,9 @@ export function csvCell(value: string | number | null | undefined): string {
 
 export async function GET(request: Request) {
   try {
-    requireApiRole(request, "admin");
+    const session = requireApiRole(request, "admin");
 
-    const products = listProducts({ sort: "name" });
+    const products = listProducts(session, { sort: "name" });
     const header = [
       "sku",
       "name",

@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    requireApiRole(request, "admin");
-    return ok(listCategories());
+    const session = requireApiRole(request, "admin");
+    return ok(listCategories(session));
   } catch (error) {
     return fail(error);
   }
@@ -15,8 +15,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    requireApiRole(request, "admin");
-    return ok(createCategory(await readJson(request)), 201);
+    const session = requireApiRole(request, "admin");
+    return ok(createCategory(session, await readJson(request)), 201);
   } catch (error) {
     return fail(error);
   }

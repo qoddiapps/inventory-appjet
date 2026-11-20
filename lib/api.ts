@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { NotFoundError, ValidationError } from "./repo";
+import { AuthorizationError, NotFoundError, ValidationError } from "./repo";
 
 const MAX_JSON_BYTES = 64 * 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -20,6 +20,9 @@ export function ok<T>(data: T, status = 200) {
 
 export function fail(error: unknown) {
   if (error instanceof HttpError) {
+    return NextResponse.json({ error: error.message }, { status: error.status, headers: NO_STORE });
+  }
+  if (error instanceof AuthorizationError) {
     return NextResponse.json({ error: error.message }, { status: error.status, headers: NO_STORE });
   }
   if (error instanceof ValidationError) {

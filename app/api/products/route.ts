@@ -6,13 +6,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    requireApiRole(request, "admin");
+    const session = requireApiRole(request, "admin");
     const url = new URL(request.url);
     const categoryId = url.searchParams.get("category_id");
     const supplierId = url.searchParams.get("supplier_id");
     const sort = url.searchParams.get("sort");
     return ok(
-      listProducts({
+      listProducts(session, {
         search: url.searchParams.get("search") ?? undefined,
         categoryId: parseOptionalId(categoryId) ?? null,
         supplierId: parseOptionalId(supplierId) ?? null,
@@ -27,8 +27,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    requireApiRole(request, "admin");
-    return ok(createProduct(await readJson(request)), 201);
+    const session = requireApiRole(request, "admin");
+    return ok(createProduct(session, await readJson(request)), 201);
   } catch (error) {
     return fail(error);
   }
