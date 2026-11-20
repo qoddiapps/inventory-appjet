@@ -258,7 +258,7 @@ test("supplier mutations require an admin session", async () => {
   const existing = repo.createSupplier({ name: "SEC-SUPPLIER-BASE", lead_time_days: 3 });
   const supplierCount = repo.listSuppliers().length;
 
-  const anonymousCreate = await supplersRoute.POST(
+  const anonymousCreate = await suppliersRoute.POST(
     new Request("https://inventory.test/api/suppliers", {
       method: "POST",
       headers: jsonHeaders(),
@@ -268,7 +268,7 @@ test("supplier mutations require an admin session", async () => {
   assert.equal(anonymousCreate.status, 401);
   assert.equal(repo.listSuppliers().length, supplierCount);
 
-  const anonymousUpdate = await supplerIdRoute.PATCH(
+  const anonymousUpdate = await supplierIdRoute.PATCH(
     new Request(`https://inventory.test/api/suppliers/${existing.id}`, {
       method: "PATCH",
       headers: jsonHeaders(),
@@ -278,16 +278,16 @@ test("supplier mutations require an admin session", async () => {
   );
   assert.equal(anonymousUpdate.status, 401);
 
-  const anonymousDelete = await supplerIdRoute.DELETE(
+  const anonymousDelete = await supplierIdRoute.DELETE(
     new Request(`https://inventory.test/api/suppliers/${existing.id}`, {
-      method: "DELET",
+      method: "DELETE",
       headers: { Origin: "https://inventory.test" },
     }),
     { params: Promise.resolve({ id: String(existing.id) }) },
   );
   assert.equal(anonymousDelete.status, 401);
 
-  const viewerCreate = await supplersRoute.POST(
+  const viewerCreate = await suppliersRoute.POST(
     authorizedRequest(
       "https://inventory.test/api/suppliers",
       {
@@ -301,7 +301,7 @@ test("supplier mutations require an admin session", async () => {
   assert.equal(viewerCreate.status, 403);
   assert.equal(repo.listSuppliers().length, supplierCount);
 
-  const viewerUpdate = await supplerIdRoute.PATCH(
+  const viewerUpdate = await supplierIdRoute.PATCH(
     authorizedRequest(
       `https://inventory.test/api/suppliers/${existing.id}`,
       {
@@ -315,10 +315,10 @@ test("supplier mutations require an admin session", async () => {
   );
   assert.equal(viewerUpdate.status, 403);
 
-  const viewerDelete = await supplerIdRoute.DELETE(
+  const viewerDelete = await supplierIdRoute.DELETE(
     authorizedRequest(
       `https://inventory.test/api/suppliers/${existing.id}`,
-      { method: "DELET", headers: { Origin: "https://inventory.test" } },
+      { method: "DELETE", headers: { Origin: "https://inventory.test" } },
       "viewer",
     ),
     { params: Promise.resolve({ id: String(existing.id) }) },
@@ -329,7 +329,7 @@ test("supplier mutations require an admin session", async () => {
   assert.ok(unchanged);
   assert.equal(unchanged.name, "SEC-SUPPLIER-BASE");
 
-  const adminCreate = await supplersRoute.POST(
+  const adminCreate = await suppliersRoute.POST(
     authorizedRequest("https://inventory.test/api/suppliers", {
       method: "POST",
       headers: jsonHeaders(),
@@ -340,7 +340,7 @@ test("supplier mutations require an admin session", async () => {
   const created = (await adminCreate.json()) as { id: number };
   assert.ok(created.id);
 
-  const adminUpdate = await supplerIdRoute.PATCH(
+  const adminUpdate = await supplierIdRoute.PATCH(
     authorizedRequest(`https://inventory.test/api/suppliers/${created.id}`, {
       method: "PATCH",
       headers: jsonHeaders(),
@@ -351,9 +351,9 @@ test("supplier mutations require an admin session", async () => {
   assert.equal(adminUpdate.status, 200);
   assert.equal(((await adminUpdate.json()) as { name: string }).name, "SEC-SUPPLIER-ADMIN-UPDATED");
 
-  const adminDelete = await supplerIdRoute.DELETE(
+  const adminDelete = await supplierIdRoute.DELETE(
     authorizedRequest(`https://inventory.test/api/suppliers/${created.id}`, {
-      method: "DELET",
+      method: "DELETE",
       headers: { Origin: "https://inventory.test" },
     }),
     { params: Promise.resolve({ id: String(created.id) }) },
