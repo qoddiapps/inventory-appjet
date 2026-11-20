@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { getProduct, listMovements } from "@/lib/repo";
 import { currency, dateTime, number, shortDate, stockStatus } from "@/lib/format";
 import { Badge, EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePageSession();
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
 

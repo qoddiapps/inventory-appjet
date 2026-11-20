@@ -3,10 +3,12 @@ import { getStats, listMovements } from "@/lib/repo";
 import { compactCurrency, currency, dateTime, number, relativeTime } from "@/lib/format";
 import { Badge, EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { StockBadge } from "@/components/StockBadge";
+import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  await requirePageSession();
   const stats = getStats();
   const movements = listMovements({ limit: 6 });
   const maxValue = Math.max(1, ...stats.category_breakdown.map((row) => row.value));

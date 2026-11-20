@@ -1,3 +1,5 @@
+import { fail } from "@/lib/api";
+import { requireApiRole } from "@/lib/auth";
 import { listProducts } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
@@ -11,40 +13,47 @@ export function csvCell(value: string | number | null | undefined): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export async function GET() {
-  const products = listProducts({ sort: "name" });
-  const header = [
-    "sku",
-    "name",
-    "category",
-    "supplier",
-    "quantity",
-    "reorder_level",
-    "unit_price",
-    "cost_price",
-    "stock_value",
-    "location",
-  ];
-  const rows = products.map((product) => [
-    product.sku,
-    product.name,
-    product.category_name,
-    product.supplier_name,
-    product.quantity,
-    product.reorder_level,
-    product.unit_price.toFixed(2),
-    product.cost_price.toFixed(2),
-    (product.unit_price * product.quantity).toFixed(2),
-    product.location,
-  ]);
+export async function GET(request: Request) {
+  try {
+    requireApiRole(request, "admin");
 
-  const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
-  const stamp = new Date().toISOString().slice(0, 10);
+    const products = listProducts({ sort: "name" });
+    const header = [
+      "sku",
+      "name",
+      "category",
+      "supplier",
+      "quantity",
+      "reorder_level",
+      "unit_price",
+      "cost_price",
+      "stock_value",
+      "location",
+    ];
+    const rows = products.map((product) => [
+      product.sku,
+      product.name,
+      product.category_name,
+      product.supplier_name,
+      product.quantity,
+      product.reorder_level,
+      product.unit_price.toFixed(2),
+      product.cost_price.toFixed(2),
+      (product.unit_price * product.quantity).toFixed(2),
+      product.location,
+    ]);
 
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="inventory-${stamp}.csv"`,
-    },
-  });
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="inventory-${stamp}.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    return fail(error);
+  }
 }
