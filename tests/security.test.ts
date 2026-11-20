@@ -95,6 +95,31 @@ test("deleting a receipt cannot leave negative stock", () => {
   assert.ok(repo.listMovements(adminSession, { productId: product.id }).some((row) => row.id === receipt.id));
 });
 
+test("repository operations fail closed without a verified admin session", () => {
+  const product = repo.createProduct(adminSession, validProduct("SEC-REPO-GUARD"));
+  const category = repo.createCategory(adminSession, { name: "SEC-REPO-GUARD" });
+  const productCount = repo.listProducts(adminSession).length;
+
+  const anonymous = (error: unknown) =>
+    error instanceof repo.AuthorizationError && error.status === 401;
+  const viewer = (error: unknown) =>
+    error instanceof repo.AuthorizationError && error.status === 403;
+
+  assert.throws(() => repo.listProducts(null), anonymous);
+  assert.throws(() => repo.getProduct(null, product.id), anonymous);
+  assert.throws(() => repo.createCategory(null, { name: "SEC-REPO-ANON" }), anonymous);
+  assert.throws(() => repo.deleteProduct(null, product.id), anonymous);
+
+  assert.throws(() => repo.listProducts(viewerSession), viewer);
+  assert.throws(() => repo.createProduct(viewerSession, validProduct("SEC-REPO-VIEWER")), viewer);
+  assert.throws(() => repo.deleteProduct(viewerSession, product.id), viewer);
+  assert.throws(() => repo.deleteCategory(viewerSession, category.id), viewer);
+
+  assert.equal(repo.getProduct(adminSession, product.id).id, product.id);
+  assert.equal(repo.listProducts(adminSession).length, productCount);
+  assert.ok(repo.listCategories(adminSession).some((row) => row.id === category.id));
+});
+
 test("CSV cells neutralize spreadsheet formulas without damaging ordinary data", () => {
   for (const formula of ["=1+1", "+CMD()", "-2+3", "@SUM(A1:A2)", "\t=1+1", "\r=1+1", "  =1+1"]) {
     const cell = csvCell(formula);
