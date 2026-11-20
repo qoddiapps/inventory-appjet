@@ -6,7 +6,7 @@ import { requirePageSession } from "@/lib/page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
-  await requirePageSession();
+  await requirePageSession("admin");
   const categories = listCategories();
 
   return (

@@ -97,11 +97,16 @@ export function readSession(request: Request): Session | null {
   return null;
 }
 
+/** Shared role check used by API and server-rendered route guards. */
+export function sessionHasRole(session: Session | null, role: Role): boolean {
+  return session?.role === role;
+}
+
 /** Central fail-closed guard used by every inventory API handler. */
 export function requireApiRole(request: Request, role: Role): Session {
   const session = readSession(request);
   if (!session) throw new HttpError(401, "Authentication required");
-  if (session.role !== role) throw new HttpError(403, "Insufficient permissions");
+  if (!sessionHasRole(session, role)) throw new HttpError(403, "Insufficient permissions");
   return session;
 }
 

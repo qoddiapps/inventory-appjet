@@ -8,7 +8,7 @@ import { requirePageSession } from "@/lib/page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePageSession();
+  await requirePageSession("admin");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
 

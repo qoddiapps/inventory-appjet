@@ -6,7 +6,7 @@ import { requirePageSession } from "@/lib/page-auth";
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  await requirePageSession();
+  await requirePageSession("admin");
   const products = listProducts({ sort: "name" });
   const categories = listCategories();
   const suppliers = listSuppliers();
