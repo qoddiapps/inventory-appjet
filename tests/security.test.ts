@@ -263,8 +263,8 @@ test("admin-only page policy rejects viewer sessions and covers every inventory 
 
   const inventoryDir = path.join(process.cwd(), "app/(inventory)");
   const routeFiles = readdirSync(inventoryDir, { recursive: true })
-    .filter((file) => file.endsWith("page.tsx") || file.endsWith("layout.tsx"))
-    .map((file) => path.join(inventoryDir, file));
+    .filter((file) => String(file).endsWith("page.tsx") || String(file).endsWith("layout.tsx"))
+    .map((file) => path.join(inventoryDir, String(file)));
   assert.ok(routeFiles.length >= 6);
 
   for (const file of routeFiles) {
