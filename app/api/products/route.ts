@@ -1,10 +1,12 @@
 import { fail, ok, parseOptionalId, parseProductSort, readJson } from "@/lib/api";
+import { requireApiRole } from "@/lib/auth";
 import { createProduct, listProducts } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    requireApiRole(request, "admin");
     const url = new URL(request.url);
     const categoryId = url.searchParams.get("category_id");
     const supplierId = url.searchParams.get("supplier_id");
@@ -25,6 +27,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    requireApiRole(request, "admin");
     return ok(createProduct(await readJson(request)), 201);
   } catch (error) {
     return fail(error);
