@@ -96,6 +96,34 @@ test("deleting a receipt cannot leave negative stock", () => {
   assert.ok(repo.listMovements(adminSession, { productId: product.id }).some((row) => row.id === receipt.id));
 });
 
+test("product creation rolls back when the opening ledger entry fails", async () => {
+  const db = (await import("../lib/db")).getDb();
+  const sku = "SEC-ATOMIC";
+  db.exec(`
+    CREATE TRIGGER sec_fail_opening_balance
+    BEFORE INSERT ON stock_movements
+    BEGIN
+      SELECT RAISE(ABORT, 'simulated ledger failure');
+    END;
+  `);
+  try {
+    assert.throws(
+      () => repo.createProduct(adminSession, validProduct(sku, 5)),
+      /simulated ledger failure/,
+    );
+    assert.equal(
+      repo.listProducts(adminSession).some((product) => product.sku === sku),
+      false,
+    );
+    const row = db.prepare("SELECT COUNT(*) AS count FROM products WHERE sku = ?").get(sku) as {
+      count: number;
+    };
+    assert.equal(row.count, 0);
+  } finally {
+    db.exec("DROP TRIGGER IF EXISTS sec_fail_opening_balance");
+  }
+});
+
 test("deleting a product cannot erase its stock-movement history", async () => {
   const product = repo.createProduct(adminSession, validProduct("SEC-PRODUCT-DELETE", 5));
   repo.createMovement(adminSession, { product_id: product.id, type: "out", quantity: 2 });

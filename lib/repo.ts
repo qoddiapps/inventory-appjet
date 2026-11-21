@@ -329,23 +329,27 @@ export function createProduct(session: Session | null, input: ProductInput): Pro
   ensureSkuAvailable(values.sku);
 
   const db = getDb();
-  const info = db
-    .prepare(
-      `INSERT INTO products
-        (sku, name, description, category_id, supplier_id, unit_price_cents, cost_cents,
-         quantity, reorder_level, location, created_at, updated_at)
-       VALUES (@sku, @name, @description, @category_id, @supplier_id, @unit_price_cents, @cost_cents,
-               @quantity, @reorder_level, @location, @created, @created)`,
-    )
-    .run({ ...values, created: nowIso() });
+  const id = db.transaction(() => {
+    const info = db
+      .prepare(
+        `INSERT INTO products
+          (sku, name, description, category_id, supplier_id, unit_price_cents, cost_cents,
+           quantity, reorder_level, location, created_at, updated_at)
+         VALUES (@sku, @name, @description, @category_id, @supplier_id, @unit_price_cents, @cost_cents,
+                 @quantity, @reorder_level, @location, @created, @created)`,
+      )
+      .run({ ...values, created: nowIso() });
 
-  const id = Number(info.lastInsertRowid);
-  if (values.quantity > 0) {
-    db.prepare(
-      `INSERT INTO stock_movements (product_id, type, quantity, delta, reason, reference, created_at)
-       VALUES (?, 'in', ?, ?, 'Initial stock', 'OPENING-BALANCE', ?)`,
-    ).run(id, values.quantity, values.quantity, nowIso());
-  }
+    const insertedId = Number(info.lastInsertRowid);
+    if (values.quantity > 0) {
+      db.prepare(
+        `INSERT INTO stock_movements (product_id, type, quantity, delta, reason, reference, created_at)
+         VALUES (?, 'in', ?, ?, 'Initial stock', 'OPENING-BALANCE', ?)`,
+      ).run(insertedId, values.quantity, values.quantity, nowIso());
+    }
+    return insertedId;
+  })();
+
   return getProduct(session, id);
 }
 
