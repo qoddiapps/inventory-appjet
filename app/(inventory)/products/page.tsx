@@ -1,15 +1,13 @@
 import { listCategories, listProducts, listSuppliers } from "@/lib/repo";
 import { PageHeader } from "@/components/ui";
 import { ProductsTable } from "@/components/ProductsTable";
-import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  const session = await requirePageSession("admin");
-  const products = listProducts(session, { sort: "name" });
-  const categories = listCategories(session);
-  const suppliers = listSuppliers(session);
+  const products = listProducts({ sort: "name" });
+  const categories = listCategories();
+  const suppliers = listSuppliers();
 
   return (
     <div>

@@ -1,5 +1,4 @@
 import { fail } from "@/lib/api";
-import { requireApiRole } from "@/lib/auth";
 import { listProducts } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +14,8 @@ export function csvCell(value: string | number | null | undefined): string {
 
 export async function GET(request: Request) {
   try {
-    const session = requireApiRole(request, "admin");
 
-    const products = listProducts(session, { sort: "name" });
+    const products = listProducts({ sort: "name" });
     const header = [
       "sku",
       "name",

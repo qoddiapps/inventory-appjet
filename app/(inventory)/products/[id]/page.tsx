@@ -3,23 +3,21 @@ import { notFound } from "next/navigation";
 import { getProduct, listMovements } from "@/lib/repo";
 import { currency, dateTime, number, shortDate, stockStatus } from "@/lib/format";
 import { Badge, EmptyState, PageHeader, StatCard } from "@/components/ui";
-import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requirePageSession("admin");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
   let product;
   try {
-    product = getProduct(session, id);
+    product = getProduct(id);
   } catch {
     notFound();
   }
 
-  const movements = listMovements(session, { productId: id, limit: 50 });
+  const movements = listMovements({ productId: id, limit: 50 });
   const status = stockStatus(product);
   const margin = product.unit_price > 0 ? ((product.unit_price - product.cost_price) / product.unit_price) * 100 : 0;
 

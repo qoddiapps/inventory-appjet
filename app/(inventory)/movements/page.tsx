@@ -1,14 +1,12 @@
 import { listMovements, listProducts } from "@/lib/repo";
 import { PageHeader } from "@/components/ui";
 import { MovementsLog } from "@/components/MovementsLog";
-import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function MovementsPage() {
-  const session = await requirePageSession("admin");
-  const movements = listMovements(session, { limit: 300 });
-  const products = listProducts(session, { sort: "name" });
+  const movements = listMovements({ limit: 300 });
+  const products = listProducts({ sort: "name" });
 
   return (
     <div>

@@ -1,13 +1,11 @@
 import { listCategories } from "@/lib/repo";
 import { PageHeader } from "@/components/ui";
 import { CategoriesManager } from "@/components/CategoriesManager";
-import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
-  const session = await requirePageSession("admin");
-  const categories = listCategories(session);
+  const categories = listCategories();
 
   return (
     <div>

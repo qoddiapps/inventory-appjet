@@ -1,13 +1,11 @@
 import { listSuppliers } from "@/lib/repo";
 import { PageHeader } from "@/components/ui";
 import { SuppliersManager } from "@/components/SuppliersManager";
-import { requirePageSession } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
-  const session = await requirePageSession("admin");
-  const suppliers = listSuppliers(session);
+  const suppliers = listSuppliers();
 
   return (
     <div>
