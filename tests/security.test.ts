@@ -99,18 +99,27 @@ test("deleting a receipt cannot leave negative stock", () => {
 test("product creation rolls back when the opening ledger entry fails", async () => {
   const db = (await import("../lib/db")).getDb();
   const sku = "SEC-ATOMIC";
-  db.exec(`
-    CREATE TRIGGER sec_fail_opening_balance
-    BEFORE INSERT ON stock_movements
-    BEGIN
-      SELECT RAISE(ABORT, 'simulated ledger failure');
-    END;
-  `);
+  const originalPrepare = db.prepare.bind(db);
+  let failOpeningBalance = false;
+
+  Object.defineProperty(db, "prepare", {
+    configurable: true,
+    writable: true,
+    value: (sql: string) => {
+      if (failOpeningBalance && sql.includes("INSERT INTO stock_movements")) {
+        throw new Error("simulated ledger failure");
+      }
+      return originalPrepare(sql);
+    },
+  });
+
   try {
+    failOpeningBalance = true;
     assert.throws(
       () => repo.createProduct(adminSession, validProduct(sku, 5)),
       /simulated ledger failure/,
     );
+    failOpeningBalance = false;
     assert.equal(
       repo.listProducts(adminSession).some((product) => product.sku === sku),
       false,
@@ -120,7 +129,7 @@ test("product creation rolls back when the opening ledger entry fails", async ()
     };
     assert.equal(row.count, 0);
   } finally {
-    db.exec("DROP TRIGGER IF EXISTS sec_fail_opening_balance");
+    delete (db as unknown as { prepare?: unknown }).prepare;
   }
 });
 
