@@ -44,5 +44,4 @@ COPY --from=builder --chown=node:node /app/public ./public
 
 USER node
 EXPOSE 3000
-VOLUME ["/data"]
 CMD ["node", "server.js"]
