@@ -4,8 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-import { logoutAndRedirect } from "@/lib/logout";
-
 const NAV = [
   { href: "/", label: "Dashboard", icon: "M3 12h5l2 5 4-13 2 8h5" },
   { href: "/products", label: "Products", icon: "M4 7l8-3 8 3v10l-8 3-8-3V7zM4 7l8 3 8-3M12 10v10" },
@@ -17,19 +15,6 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [signOutError, setSignOutError] = useState(false);
-
-  async function signOut() {
-    setSigningOut(true);
-    setSignOutError(false);
-
-    const completed = await logoutAndRedirect((path) => window.location.assign(path));
-    if (!completed) {
-      setSignOutError(true);
-      setSigningOut(false);
-    }
-  }
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -108,25 +93,6 @@ export function Sidebar() {
           </span>
         </a>
 
-        <button
-          type="button"
-          onClick={signOut}
-          disabled={signingOut}
-          className="btn-ghost mt-3 w-full justify-start"
-        >
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 12H4m4-4l-4 4 4 4M14 4h5v16h-5" />
-          </svg>
-          {signingOut ? "Signing out…" : signOutError ? "Try signing out again" : "Sign out"}
-        </button>
-        {signOutError ? (
-          <p
-            role="alert"
-            className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-200"
-          >
-            Sign out failed, so your session may still be active. Please try again.
-          </p>
-        ) : null}
       </aside>
     </>
   );
