@@ -14,6 +14,11 @@ process.env.STOCKROOM_SESSION_SECRET = "test-session-secret-0123456789abcdef";
 const repo = await import("../lib/repo");
 const { readJson } = await import("../lib/api");
 const { createSessionToken, readSessionToken, sessionHasRole, SESSION_COOKIE, SESSION_TTL_SECONDS } = await import("../lib/auth");
+const {
+  LOGIN_RATE_LIMIT_MAX_FAILURES,
+  LOGIN_RATE_LIMIT_WINDOW_MS,
+  resetLoginRateLimitForTests,
+} = await import("../lib/login-rate-limit");
 const { csvCell } = await import("../app/api/export/route");
 const exportRoute = await import("../app/api/export/route");
 const categoriesRoute = await import("../app/api/categories/route");
@@ -624,6 +629,51 @@ test("invalid credentials do not issue a session", async () => {
   );
   assert.equal(response.status, 401);
   assert.equal(response.headers.get("set-cookie"), null);
+});
+
+test("admin login is throttled after repeated failures and recovers after the window", async () => {
+  resetLoginRateLimitForTests();
+  const client = "203.0.113.10";
+  const otherClient = "203.0.113.11";
+  const attempt = (password: string, source = client) =>
+    loginRoute.POST(
+      new Request("https://inventory.test/api/auth/login", {
+        method: "POST",
+        headers: { ...jsonHeaders(), "x-forwarded-for": source },
+        body: JSON.stringify({ password }),
+      }),
+    );
+
+  try {
+    for (let attemptNumber = 0; attemptNumber < LOGIN_RATE_LIMIT_MAX_FAILURES; attemptNumber += 1) {
+      const response = await attempt("wrong-password-1234");
+      assert.equal(response.status, 401);
+      assert.equal(response.headers.get("set-cookie"), null);
+    }
+
+    const blocked = await attempt("wrong-password-1234");
+    assert.equal(blocked.status, 429);
+    assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+    assert.equal(blocked.headers.get("set-cookie"), null);
+
+    const correctWhileBlocked = await attempt(String(process.env.STOCKROOM_ADMIN_PASSWORD));
+    assert.equal(correctWhileBlocked.status, 429);
+
+    const otherSource = await attempt("wrong-password-1234", otherClient);
+    assert.equal(otherSource.status, 401);
+
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow() + LOGIN_RATE_LIMIT_WINDOW_MS + 1;
+      const afterWindow = await attempt(String(process.env.STOCKROOM_ADMIN_PASSWORD));
+      assert.equal(afterWindow.status, 200);
+      assert.ok(afterWindow.headers.get("set-cookie"));
+    } finally {
+      Date.now = realNow;
+    }
+  } finally {
+    resetLoginRateLimitForTests();
+  }
 });
 
 test("forged and expired sessions are rejected", () => {
