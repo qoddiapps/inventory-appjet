@@ -39,10 +39,10 @@ async function main() {
     const products = (await productsResponse.json()) as Array<{ sku: string }>;
     assert.ok(products.length > 0);
 
-    const statsResponse = await statsRoute.GET(new Request("http://localhost/api/stats"));
+    const statsResponse = await statsRoute.GET();
     assert.equal(statsResponse.status, 200);
 
-    const exportResponse = await exportRoute.GET(new Request("http://localhost/api/export"));
+    const exportResponse = await exportRoute.GET();
     assert.equal(exportResponse.status, 200);
     assert.match(exportResponse.headers.get("content-type") ?? "", /text\/csv/);
     const csv = await exportResponse.text();
