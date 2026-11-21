@@ -3,7 +3,7 @@ import { createCategory, listCategories } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     return ok(listCategories());
   } catch (error) {

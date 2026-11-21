@@ -12,9 +12,8 @@ export function csvCell(value: string | number | null | undefined): string {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-
     const products = listProducts({ sort: "name" });
     const header = [
       "sku",

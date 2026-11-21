@@ -3,7 +3,7 @@ import { createSupplier, listSuppliers } from "@/lib/repo";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     return ok(listSuppliers());
   } catch (error) {
