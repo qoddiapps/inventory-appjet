@@ -32,9 +32,8 @@ ENV NODE_ENV=production \
 # Apply distro security updates before dropping privileges.
 # Keep an (empty) /var/cache/apk directory: image scanners read that path to
 # enumerate installed apk packages and fail when it is absent.
-RUN apk upgrade --no-cache \
+RUN echo "os-refresh 2026-11-21" && apk upgrade --no-cache \
  && apk add --no-cache ca-certificates \
- && rm -rf /var/cache/apk/* \
  && mkdir -p /var/cache/apk /data \
  && chown node:node /data
 

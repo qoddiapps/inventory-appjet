@@ -17,6 +17,23 @@ interface, container packaging and deployment.
 
 No human wrote or hand-edited the code in this repository.
 
+## Public demo
+
+This deployment is intentionally open so visitors can try the full application
+without creating an account. There is **no login, user account or role system**;
+anyone with the URL can read and change the demo catalogue.
+
+Because the demo is public:
+
+- Do not enter real supplier, pricing, customer or personal data.
+- Treat all records as disposable sandbox data.
+- Expect other visitors to change the same inventory.
+
+The demo still applies non-authentication protections: same-origin checks on
+browser writes, JSON content-type and body-size limits, strict input validation,
+parameterized SQL, ledger-controlled stock quantities, referential-integrity
+guards, CSV formula neutralization and hardened HTTP security headers.
+
 ## Features
 
 - **Dashboard** — total inventory value, product counts, units in stock, low-stock
@@ -42,60 +59,48 @@ No human wrote or hand-edited the code in this repository.
 | Database  | SQLite via `better-sqlite3` (persisted volume)      |
 | Runtime   | Node 24, Alpine 3.22 container image                |
 
-Data lives in a SQLite file under `DATA_DIR` (default `/data`) and is seeded
-automatically on first boot, so the demo is useful immediately.
-
-## Authentication
-
-All inventory pages, API reads and mutations require an administrator session.
-The application fails closed when authentication is not configured: there is no
-anonymous or default-password fallback.
-
-Set both required environment variables before starting the app:
-
-| Variable                   | Requirement                                      |
-| -------------------------- | ------------------------------------------------ |
-| `STOCKROOM_ADMIN_PASSWORD` | Administrator password, at least 12 characters   |
-| `STOCKROOM_SESSION_SECRET` | Random signing secret, at least 32 bytes         |
-
-Generate a suitable signing secret with:
-
-```bash
-openssl rand -base64 48
-```
-
-Sessions are signed with HMAC-SHA256 and stored in an `HttpOnly`, `SameSite=Strict`
-cookie. They expire after eight hours. Sign in at `/login`; sign out from the sidebar.
+Data lives in a SQLite file under `DATA_DIR` (default `/data` in the container)
+and is seeded automatically on first boot, so the demo is useful immediately.
 
 ## API
 
-All routes below require an authenticated administrator session except
-`POST /api/auth/login` and `POST /api/auth/logout`.
+All routes are public in this demo. State-changing requests must send
+`Content-Type: application/json`; browser requests must be same-origin.
 
 | Method | Route                   | Purpose                          |
 | ------ | ----------------------- | -------------------------------- |
-| POST   | `/api/auth/login`       | Start an administrator session   |
-| POST   | `/api/auth/logout`      | End the current session          |
 | GET    | `/api/stats`            | Dashboard aggregates             |
 | GET    | `/api/products`         | List with search/filter/sort     |
 | POST   | `/api/products`         | Create a product                 |
+| GET    | `/api/products/:id`     | Read one product                 |
 | PATCH  | `/api/products/:id`     | Update a product                 |
 | DELETE | `/api/products/:id`     | Delete a product                 |
 | GET    | `/api/movements`        | List stock movements             |
 | POST   | `/api/movements`        | Record a movement                |
+| DELETE | `/api/movements/:id`    | Remove a movement                |
 | GET    | `/api/categories`       | List categories                  |
 | POST   | `/api/categories`       | Create a category                |
+| PATCH  | `/api/categories/:id`   | Update a category                |
+| DELETE | `/api/categories/:id`   | Delete a category                |
 | GET    | `/api/suppliers`        | List suppliers                   |
 | POST   | `/api/suppliers`        | Create a supplier                |
+| PATCH  | `/api/suppliers/:id`    | Update a supplier                |
+| DELETE | `/api/suppliers/:id`    | Delete a supplier                |
 | GET    | `/api/export`           | CSV export of the catalogue      |
 
 ## Run locally
 
+No environment variables are required for the demo.
+
 ```bash
 npm install
-export STOCKROOM_ADMIN_PASSWORD='choose-a-strong-password'
-export STOCKROOM_SESSION_SECRET="$(openssl rand -base64 48)"
 npm run dev          # http://localhost:3000
+```
+
+Run the public-access and ledger regression suite:
+
+```bash
+npm test
 ```
 
 Then build for production:
@@ -109,10 +114,7 @@ npm start
 
 ```bash
 docker build -t stockroom .
-docker run -p 3000:3000 \
-  -e STOCKROOM_ADMIN_PASSWORD='choose-a-strong-password' \
-  -e STOCKROOM_SESSION_SECRET="$(openssl rand -base64 48)" \
-  -v stockroom-data:/data stockroom
+docker run -p 3000:3000 -v stockroom-data:/data stockroom
 ```
 
 ## Project structure
@@ -121,8 +123,9 @@ docker run -p 3000:3000 \
 app/                 Pages and API route handlers
 components/          Client UI components (tables, forms, modals)
 lib/db.ts            SQLite connection and migrations
-lib/repo.ts          Data-access queries
+lib/repo.ts          Data-access queries and stock-ledger rules
 lib/seed.ts          First-boot demo data
 lib/types.ts         Shared domain types
 lib/format.ts        Currency/date formatting and stock status
+tests/               Public-access and ledger regression tests
 ```
