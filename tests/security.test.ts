@@ -31,6 +31,8 @@ const productIdRoute = await import("../app/api/products/[id]/route");
 const suppliersRoute = await import("../app/api/suppliers/route");
 const supplierIdRoute = await import("../app/api/suppliers/[id]/route");
 const loginRoute = await import("../app/api/auth/login/route");
+const logoutRoute = await import("../app/api/auth/logout/route");
+const { logoutAndRedirect } = await import("../lib/logout");
 const nextConfig = (await import("../next.config")).default;
 
 function sessionFor(role: "admin" | "viewer") {
@@ -629,6 +631,87 @@ test("invalid credentials do not issue a session", async () => {
   );
   assert.equal(response.status, 401);
   assert.equal(response.headers.get("set-cookie"), null);
+});
+
+test("logout redirects only after the server confirms session expiry", async () => {
+  const redirects: string[] = [];
+  const redirect = (path: string) => redirects.push(path);
+
+  const httpFailure = (async () =>
+    new Response(JSON.stringify({ error: "unavailable" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    })) as typeof fetch;
+  assert.equal(await logoutAndRedirect(redirect, httpFailure), false);
+  assert.deepEqual(redirects, []);
+
+  const unconfirmed = (async () =>
+    new Response(JSON.stringify({ authenticated: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })) as typeof fetch;
+  assert.equal(await logoutAndRedirect(redirect, unconfirmed), false);
+  assert.deepEqual(redirects, []);
+
+  const offline = (async () => {
+    throw new Error("network unavailable");
+  }) as typeof fetch;
+  assert.equal(await logoutAndRedirect(redirect, offline), false);
+  assert.deepEqual(redirects, []);
+
+  let requestUrl = "";
+  let requestInit: RequestInit | undefined;
+  const success = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestUrl = String(input);
+    requestInit = init;
+    return new Response(JSON.stringify({ authenticated: false }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  assert.equal(await logoutAndRedirect(redirect, success), true);
+  assert.deepEqual(redirects, ["/login"]);
+  assert.equal(requestUrl, "/api/auth/logout");
+  assert.equal(requestInit?.method, "POST");
+  assert.equal(requestInit?.credentials, "same-origin");
+});
+
+test("logout route expires the session cookie and rejects cross-site requests", async () => {
+  const response = await logoutRoute.POST(
+    new Request("https://inventory.test/api/auth/logout", {
+      method: "POST",
+      headers: { Origin: "https://inventory.test", "Sec-Fetch-Site": "same-origin" },
+    }),
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { authenticated: false });
+  assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+
+  const setCookie = response.headers.get("set-cookie");
+  assert.ok(setCookie);
+  assert.match(setCookie, new RegExp(`^${SESSION_COOKIE}=;`));
+  assert.match(setCookie, /Max-Age=0/i);
+  assert.match(setCookie, /HttpOnly/i);
+  assert.match(setCookie, /SameSite=strict/i);
+
+  const crossSite = await logoutRoute.POST(
+    new Request("https://inventory.test/api/auth/logout", {
+      method: "POST",
+      headers: { Origin: "https://attacker.invalid", "Sec-Fetch-Site": "cross-site" },
+    }),
+  );
+  assert.equal(crossSite.status, 403);
+  assert.equal(crossSite.headers.get("set-cookie"), null);
+});
+
+test("sidebar only redirects after confirmed logout and exposes a retryable error", () => {
+  const source = readFileSync(path.join(process.cwd(), "components/Sidebar.tsx"), "utf8");
+  assert.match(source, /const completed = await logoutAndRedirect/);
+  assert.match(source, /if \(!completed\)/);
+  assert.match(source, /role="alert"/);
+  assert.match(source, /session may still be active/);
+  assert.doesNotMatch(source, /finally\s*\{[^}]*window\.location\.assign/);
 });
 
 test("admin login is throttled after repeated failures and recovers after the window", async () => {
